@@ -4,10 +4,36 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "proc-tap"
-version = "0.1.0"
+version = "0.1.1"
 description = "Process-level audio tap for Windows"
 readme = "README.md"
 requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "m96-chan", email = "y_harada@technologies.moe"}
+]
+keywords = ["audio", "capture", "wasapi", "windows", "process", "loopback"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: Microsoft :: Windows :: Windows 10",
+    "Operating System :: Microsoft :: Windows :: Windows 11",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: C++",
+    "Topic :: Multimedia :: Sound/Audio :: Capture/Recording",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+[project.urls]
+Homepage = "https://github.com/m96-chan/ProcTap"
+Repository = "https://github.com/m96-chan/ProcTap"
+Issues = "https://github.com/m96-chan/ProcTap/issues"
 
 [project.optional-dependencies]
 dev = [
