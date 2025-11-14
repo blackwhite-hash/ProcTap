@@ -263,84 +263,20 @@ ProcTap/
 
 ---
 
-## 🛠 GitHub Action (Wheel Build)
-
-```yaml
-name: Build and publish wheels
-
-on:
-  push:
-    tags:
-      - "v*.*.*"
-  workflow_dispatch: {}
-
-jobs:
-  build-wheels:
-    runs-on: windows-latest
-
-    strategy:
-      matrix:
-        python-version: ["3.10", "3.11", "3.12", "3.13"]
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-
-      - name: Install build tools
-        run: |
-          pip install --upgrade pip
-          pip install build
-
-      - name: Build wheel
-        run: |
-          python -m build --wheel
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: wheels-py${{ matrix.python-version }}
-          path: dist/*.whl
-
-  publish:
-    needs: build-wheels
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          path: dist
-
-      - name: Flatten wheels
-        shell: bash
-        run: |
-          mkdir -p upload
-          find dist -name '*.whl' -exec cp {} upload/ \;
-
-      - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@v1.12.4
-        with:
-          user: __token__
-          password: ${{ secrets.PYPI_API_TOKEN }}
-          packages_dir: upload
-```
-
----
-
 ## 🤝 Contributing
 
-Contributions are welcome!
+Contributions are welcome! We have structured issue templates to help guide your contributions:
 
-- Bug fixes
-- Feature requests
-- Performance improvements
-- Type hints / async extension
-- Documentation improvements
+- 🐛 [**Bug Report**](../../issues/new?template=bug_report.yml) - Report bugs or unexpected behavior
+- ✨ [**Feature Request**](../../issues/new?template=feature_request.yml) - Suggest new features or enhancements
+- ⚡ [**Performance Issue**](../../issues/new?template=performance.yml) - Report performance problems or optimizations
+- 🔧 [**Type Hints / Async**](../../issues/new?template=type_hints_async.yml) - Improve type annotations or async functionality
+- 📚 [**Documentation**](../../issues/new?template=documentation.yml) - Improve docs, examples, or guides
 
-PRs from WASAPI/C++ experts are especially appreciated.
+**Special Interest:**
+- PRs from WASAPI/C++ experts are especially appreciated
+- Help with cross-platform compatibility research
+- Performance profiling and optimization
 
 ---
 
