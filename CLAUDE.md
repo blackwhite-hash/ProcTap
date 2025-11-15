@@ -4,17 +4,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-ProcTap is a cross-platform Python library for capturing audio from specific processes. It provides platform-specific backends for Windows, Linux (under development), and macOS (planned).
+ProcTap is a cross-platform Python library for capturing audio from specific processes. It provides platform-optimized backends for Windows, Linux, and macOS.
 
 **Platform Support:**
 - **Windows**: ✅ Fully implemented using WASAPI Process Loopback (C++ native extension)
-- **Linux**: 🚧 Under development - PulseAudio/PipeWire backend (stub implementation)
-- **macOS**: ❌ Not yet implemented - planned for future support
+- **Linux**: 🧪 Experimental - PulseAudio backend (basic implementation with limitations)
+- **macOS**: 🧪 Experimental - Core Audio Process Tap via Swift CLI helper (macOS 14.4+)
 
 **Key Characteristics:**
 - Per-process audio isolation (not system-wide)
 - Low-latency streaming (10ms default buffer on Windows)
-- Windows 10 20H1+ required for Windows backend
+- Platform-specific implementations:
+  - Windows: WASAPI C++ extension (Windows 10 20H1+)
+  - Linux: PulseAudio backend (experimental)
+  - macOS: Core Audio Process Tap via Swift helper (macOS 14.4+, experimental)
 - Dual API: callback-based and async iterator patterns
 
 ## Development Commands
@@ -50,11 +53,28 @@ mypy src/
 ### Running Examples
 
 ```bash
-# Capture by process ID
+# Windows example
 python examples/record_proc_to_wav.py --pid 12345 --output audio.wav
-
-# Capture by process name (requires psutil)
 python examples/record_proc_to_wav.py --name "VRChat.exe" --output audio.wav
+
+# Linux example (requires pulseaudio-utils)
+python examples/linux_pulse_basic.py --pid 12345 --duration 5 --output output.wav
+
+# macOS example (requires macOS 14.4+, Swift helper)
+python examples/macos_coreaudio_basic.py --pid 12345 --duration 5 --output output.wav
+```
+
+### Building macOS Swift Helper
+
+```bash
+# Build Swift CLI helper for macOS
+cd swift/proctap-macos
+swift build -c release
+
+# Copy to package directory
+cp .build/release/proctap-macos ../../src/proctap/bin/
+
+# The setup.py build system will do this automatically on macOS if Swift toolchain is available
 ```
 
 ## Architecture
@@ -68,21 +88,21 @@ ProcTap (core.py - Public API)
     ↓
 backends/__init__.py (Platform Detection)
     ↓
-┌────────────────┬──────────────────┬─────────────────┐
-│ Windows        │ Linux            │ macOS           │
-│ (Implemented)  │ (In Development) │ (Planned)       │
-├────────────────┼──────────────────┼─────────────────┤
-│ WindowsBackend │ LinuxBackend     │ MacOSBackend    │
-│ └─ _native.cpp │ └─ PulseAudio/   │ └─ Core Audio/  │
-│    (WASAPI)    │    PipeWire      │    ScreenKit    │
-└────────────────┴──────────────────┴─────────────────┘
+┌─────────────────┬──────────────────┬──────────────────┐
+│ Windows         │ Linux            │ macOS            │
+│ (Implemented)   │ (Experimental)   │ (Experimental)   │
+├─────────────────┼──────────────────┼──────────────────┤
+│ WindowsBackend  │ LinuxBackend     │ MacOSBackend     │
+│ └─ _native.cpp  │ └─ PulseAudio    │ └─ Swift CLI     │
+│    (WASAPI)     │    (parec)       │    (Process Tap) │
+└─────────────────┴──────────────────┴──────────────────┘
 ```
 
 **Backend Selection** ([backends/__init__.py](src/proctap/backends/__init__.py)):
 - Automatic platform detection using `platform.system()`
 - Windows: Uses native C++ extension with WASAPI
-- Linux: Stub implementation with TODO markers (development in progress)
-- macOS: Raises `NotImplementedError` (not yet implemented)
+- Linux: PulseAudio backend (experimental)
+- macOS: Core Audio Process Tap via Swift CLI helper (experimental)
 
 **Windows Backend** ([backends/windows.py](src/proctap/backends/windows.py)):
 - Wraps `_native.cpp` C++ extension
@@ -98,9 +118,18 @@ backends/__init__.py (Platform Detection)
 - Requires: `pulsectl` library, `parec` command, target process must be playing audio
 
 **macOS Backend** ([backends/macos.py](src/proctap/backends/macos.py)):
-- ❌ Not yet implemented
-- Potential approach: ScreenCaptureKit API (macOS 12.3+)
-- See file for research notes
+- 🧪 Experimental - Core Audio Process Tap API (macOS 14.4+)
+- Uses Swift CLI helper binary (proctap-macos) that wraps Core Audio APIs
+- Swift helper outputs raw PCM to stdout, Python reads from subprocess pipe
+- **Requirements:**
+  - macOS 14.4 (Sonoma) or later
+  - Swift CLI helper binary (built with SwiftPM)
+  - Audio capture permission (NSAudioCaptureUsageDescription)
+  - Target process must be actively playing audio
+- **Implementation:**
+  - Python side: Version detection, subprocess management, PCM reading
+  - Swift side: Core Audio Process Tap API, aggregate device creation, IOProc callback
+  - See [swift/proctap-macos/](swift/proctap-macos/) for Swift helper source
 
 ### Threading Model
 
@@ -131,8 +160,8 @@ Audio Source (Process-specific)
 **[backends/](src/proctap/backends/)** - Platform-specific implementations:
 - `base.py`: `AudioBackend` abstract base class
 - `windows.py`: Windows implementation (wraps `_native.cpp`)
-- `linux.py`: Linux implementation (under development)
-- `macos.py`: macOS implementation (not implemented)
+- `linux.py`: Linux PulseAudio implementation (experimental)
+- `macos.py`: macOS Core Audio Process Tap implementation (experimental)
 
 **[_native.cpp](src/proctap/_native.cpp)** - Windows C++ Extension:
 - `ProcessLoopback` class: WASAPI capture implementation
@@ -159,16 +188,26 @@ The build system ([setup.py](setup.py)) automatically detects the platform and b
 
 **Extension Module:** Builds as `_native.cp3XX-win_amd64.pyd` (Windows only)
 
-**Linux/macOS Builds:**
+**Linux Builds:**
 - No C++ extension required (pure Python)
-- Backend functionality limited (see platform support status above)
+- PulseAudio backend uses `pulsectl` library and `parec` command
+- System dependencies: `pulseaudio-utils` package
+
+**macOS Builds:**
+- Swift CLI helper (proctap-macos) built with SwiftPM
+- Custom `build_py` command in setup.py:
+  - Runs `swift build -c release` in `swift/proctap-macos/`
+  - Copies binary to `src/proctap/bin/`
+  - Makes binary executable
+- Gracefully degrades if Swift toolchain not available
+- Binary included in wheel via `package_data`
 
 ## Python Dependencies
 
 **Runtime:**
 - **Windows**: No Python dependencies (uses native C++ extension)
 - **Linux**: `pulsectl>=23.5.0` (automatically installed via environment markers in pyproject.toml)
-- **macOS**: No dependencies (not yet implemented)
+- **macOS**: No Python dependencies (uses Swift CLI helper binary)
 
 **System Dependencies (Linux only):**
 - `parec` command from `pulseaudio-utils` package
@@ -197,9 +236,18 @@ The Windows native extension uses a **fixed audio format** hardcoded in [_native
 
 **Note:** The `StreamConfig` class exists in Python but does not affect the Windows backend format. The format is fixed at the C++ level and cannot be changed without recompiling the extension.
 
-**Linux/macOS Backends:**
+**Linux Backend:**
 
-Audio format will be determined by the respective backend implementations when completed.
+The PulseAudio backend respects the `StreamConfig` settings:
+- Default: 44,100 Hz, 2 channels, 16-bit PCM
+- Configurable via `StreamConfig` parameter
+
+**macOS Backend:**
+
+The Core Audio Process Tap backend respects the `StreamConfig` settings:
+- Default: 48,000 Hz, 2 channels, 16-bit PCM
+- Configurable via `StreamConfig` parameter
+- Format specified via command-line args to Swift helper
 
 Raw PCM data is returned as `bytes` to user callbacks/iterators.
 
@@ -222,11 +270,16 @@ Raw PCM data is returned as `bytes` to user callbacks/iterators.
    - TODO: Add native PipeWire support (PipeWireStrategy class)
    - TODO: Improve error handling and edge cases
 
-**macOS Backend (Not Implemented):**
-1. **ScreenCaptureKit Investigation** ([backends/macos.py](src/proctap/backends/macos.py)):
-   - TODO: Research ScreenCaptureKit API feasibility
-   - TODO: Prototype implementation
-   - See file for potential approaches
+**macOS Backend (Experimental):**
+1. **Core Audio Process Tap Implementation** ([backends/macos.py](src/proctap/backends/macos.py)):
+   - ✅ Basic implementation complete using Swift CLI helper
+   - ✅ macOS 14.4+ version detection
+   - ✅ Swift helper binary discovery and subprocess management
+   - ✅ PCM streaming from stdout
+   - TODO: Test on actual macOS 14.4+ system
+   - TODO: Handle permission prompts gracefully
+   - TODO: Improve error messages for common failure modes
+   - TODO: Code signing guidance for distribution
 
 **General:**
 1. **Test Coverage:**
@@ -241,4 +294,4 @@ GitHub Actions workflows in [.github/workflows/](.github/workflows/):
 - **[publish-pypi.yml](.github/workflows/publish-pypi.yml)**: Manual PyPI release trigger
 - **[release-testpypi.yml](.github/workflows/release-testpypi.yml)**: TestPyPI releases
 
-**Note:** Current workflows use Windows runners. Future TODO: Add Linux/macOS runners when respective backends are implemented.
+**Note:** Current workflows use Windows runners. Future TODO: Add Linux/macOS runners for platform-specific testing of experimental backends.

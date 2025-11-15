@@ -27,9 +27,9 @@ Ideal for VRChat, games, DAWs, browsers, and AI audio analysis pipelines.
 |----------|--------|---------|-------|
 | **Windows** | ✅ **Fully Supported** | WASAPI (C++ native) | Windows 10/11 (20H1+) |
 | **Linux** | 🧪 **Experimental** | PulseAudio/PipeWire | Basic support, sink monitor capture |
-| **macOS** | ❌ **Planned** | Core Audio / ScreenCaptureKit | Not yet implemented |
+| **macOS** | 🧪 **Experimental** | Core Audio Process Tap | macOS 14.4+ (Sonoma) required |
 
-<sub>\* Linux support is experimental with limitations (see requirements). macOS support is planned. Windows is currently the only fully functional platform.</sub>
+<sub>\* Linux and macOS support are experimental with limitations (see requirements). Windows is currently the only fully functional platform.</sub>
 
 </div>
 
@@ -41,12 +41,12 @@ Ideal for VRChat, games, DAWs, browsers, and AI audio analysis pipelines.
   (VRChat, games, browsers, Discord, DAWs, streaming tools, etc.)
 
 - 🌍 **Cross-platform architecture**
-  → Windows (fully supported) | Linux (under development) | macOS (planned)
+  → Windows (fully supported) | Linux (experimental) | macOS (experimental, 14.4+)
 
 - ⚡ **Platform-optimized backends**
   → Windows: ActivateAudioInterfaceAsync (modern WASAPI)
-  → Linux: PulseAudio/PipeWire (in development)
-  → macOS: Planned (Core Audio / ScreenCaptureKit)
+  → Linux: PulseAudio/PipeWire (experimental)
+  → macOS: Core Audio Process Tap API (macOS 14.4+)
 
 - 🧵 **Low-latency, thread-safe audio engine**
   → 44.1 kHz / stereo / 16-bit PCM format (Windows)
@@ -113,10 +113,13 @@ pip install -e .
 - ⚠️ **EXPERIMENTAL:** Basic PulseAudio support implemented
 - ⚠️ **LIMITATION:** Currently captures from entire sink monitor (may include other apps)
 
-**macOS (Planned):**
-- macOS 12.3+ (for ScreenCaptureKit)
+**macOS (Experimental):**
+- macOS 14.4 (Sonoma) or later
 - Python 3.10+
-- ❌ **Not yet implemented**
+- Swift CLI helper binary (proctap-macos)
+- Audio capture permission
+- ⚠️ **EXPERIMENTAL:** Core Audio Process Tap API support implemented
+- ⚠️ **REQUIREMENT:** Requires macOS 14.4+ for Process Tap API
 
 ---
 
@@ -300,6 +303,51 @@ finally:
 
 ---
 
+## 🍎 macOS Example
+
+```python
+from proctap import ProcessAudioTap, StreamConfig
+import wave
+
+pid = 12345  # Your target process ID
+
+# Create WAV file
+wav = wave.open("macos_capture.wav", "wb")
+wav.setnchannels(2)
+wav.setsampwidth(2)
+wav.setframerate(48000)  # macOS backend default is 48 kHz
+
+def on_data(pcm, frames):
+    wav.writeframes(pcm)
+
+# Create stream config (macOS backend respects these settings)
+config = StreamConfig(sample_rate=48000, channels=2)
+
+try:
+    with ProcessAudioTap(pid, config=config, on_data=on_data):
+        print("⚠️  Make sure the process is actively playing audio!")
+        print("⚠️  On first run, macOS will prompt for permission.")
+        input("Recording... Press Enter to stop.\n")
+finally:
+    wav.close()
+```
+
+**macOS-specific requirements:**
+- macOS 14.4 (Sonoma) or later
+- Swift CLI helper binary (proctap-macos) - automatically built during installation if Swift toolchain available
+- Audio capture permission - macOS will prompt on first run
+- The target process must be actively playing audio
+- See [examples/macos_coreaudio_basic.py](examples/macos_coreaudio_basic.py) for a complete example
+
+**Building the Swift helper manually:**
+```bash
+cd swift/proctap-macos
+swift build -c release
+cp .build/release/proctap-macos ../../src/proctap/bin/
+```
+
+---
+
 ## 🏗 Build From Source
 
 ```bash
@@ -331,8 +379,8 @@ Contributions are welcome! We have structured issue templates to help guide your
 
 **Special Interest:**
 - PRs from WASAPI/C++ experts are especially appreciated
-- **Linux backend implementation** (PulseAudio/PipeWire experts welcome!)
-- **macOS backend implementation** (Core Audio / ScreenCaptureKit experience needed)
+- **Linux backend improvements** (PulseAudio/PipeWire per-app isolation)
+- **macOS backend testing** (Core Audio Process Tap on macOS 14.4+)
 - Cross-platform testing and compatibility
 - Performance profiling and optimization
 
