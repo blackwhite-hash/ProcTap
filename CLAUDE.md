@@ -90,9 +90,12 @@ backends/__init__.py (Platform Detection)
 - Fixed audio format: 44.1kHz, 2ch, 16-bit PCM
 
 **Linux Backend** ([backends/linux.py](src/proctap/backends/linux.py)):
-- 🚧 Under development - technical verification stage
-- Planned: PulseAudio or PipeWire integration
-- See file for detailed TODO notes and implementation approaches
+- 🧪 Experimental - PulseAudio support implemented
+- Uses `pulsectl` library for PulseAudio interaction
+- Captures from sink monitor using `parec` command
+- Strategy pattern allows future PipeWire native support
+- **Limitation:** Currently captures from entire sink (not per-app isolated)
+- Requires: `pulsectl` library, `parec` command, target process must be playing audio
 
 **macOS Backend** ([backends/macos.py](src/proctap/backends/macos.py)):
 - ❌ Not yet implemented
@@ -163,8 +166,13 @@ The build system ([setup.py](setup.py)) automatically detects the platform and b
 ## Python Dependencies
 
 **Runtime:**
-- **None** - The library has no runtime Python dependencies
-- The native C++ extension is built into the package
+- **Windows**: No Python dependencies (uses native C++ extension)
+- **Linux**: `pulsectl>=23.5.0` (automatically installed via environment markers in pyproject.toml)
+- **macOS**: No dependencies (not yet implemented)
+
+**System Dependencies (Linux only):**
+- `parec` command from `pulseaudio-utils` package
+- PulseAudio or PipeWire with pulseaudio-compat
 
 **Optional:**
 - `psutil`: Used in examples for process name → PID resolution
@@ -205,11 +213,14 @@ Raw PCM data is returned as `bytes` to user callbacks/iterators.
 2. **Buffer Size Control** ([core.py:29](src/proctap/core.py#L29)):
    - `buffer_ms` parameter exists but note indicates limited control
 
-**Linux Backend (Under Development):**
-1. **PulseAudio/PipeWire Integration** ([backends/linux.py](src/proctap/backends/linux.py)):
-   - TODO: Implement actual audio capture
-   - TODO: Process stream detection and isolation
-   - See file for detailed implementation notes
+**Linux Backend (Experimental):**
+1. **PulseAudio Integration** ([backends/linux.py](src/proctap/backends/linux.py)):
+   - ✅ Basic PulseAudio capture implemented
+   - ✅ Process stream detection via application.process.id property
+   - ⚠️ Limitation: Captures from entire sink monitor (not per-app isolated)
+   - TODO: Implement proper per-app isolation using module-remap-source
+   - TODO: Add native PipeWire support (PipeWireStrategy class)
+   - TODO: Improve error handling and edge cases
 
 **macOS Backend (Not Implemented):**
 1. **ScreenCaptureKit Investigation** ([backends/macos.py](src/proctap/backends/macos.py)):

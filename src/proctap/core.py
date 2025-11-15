@@ -54,7 +54,13 @@ class ProcessAudioTap:
         self._on_data = on_data
 
         # Get platform-specific backend
-        self._backend: AudioBackend = get_backend(pid)
+        # Pass config to backend (Windows uses fixed format, Linux uses config)
+        self._backend: AudioBackend = get_backend(
+            pid=pid,
+            sample_rate=self._cfg.sample_rate,
+            channels=self._cfg.channels,
+            sample_width=2,  # 16-bit = 2 bytes
+        )
         logger.debug(f"Using backend: {type(self._backend).__name__}")
 
         self._thread: Optional[threading.Thread] = None

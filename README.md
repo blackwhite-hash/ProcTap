@@ -26,10 +26,10 @@ Ideal for VRChat, games, DAWs, browsers, and AI audio analysis pipelines.
 | Platform | Status | Backend | Notes |
 |----------|--------|---------|-------|
 | **Windows** | ✅ **Fully Supported** | WASAPI (C++ native) | Windows 10/11 (20H1+) |
-| **Linux** | 🚧 **Under Development** | PulseAudio/PipeWire | Stub implementation with TODOs |
+| **Linux** | 🧪 **Experimental** | PulseAudio/PipeWire | Basic support, sink monitor capture |
 | **macOS** | ❌ **Planned** | Core Audio / ScreenCaptureKit | Not yet implemented |
 
-<sub>\* Linux and macOS support are in development/planning stages. Windows is currently the only fully functional platform.</sub>
+<sub>\* Linux support is experimental with limitations (see requirements). macOS support is planned. Windows is currently the only fully functional platform.</sub>
 
 </div>
 
@@ -68,6 +68,17 @@ Ideal for VRChat, games, DAWs, browsers, and AI audio analysis pipelines.
 pip install proc-tap
 ```
 
+**Platform-specific dependencies are automatically installed:**
+- Windows: No additional dependencies
+- Linux: `pulsectl` is automatically installed, but you also need system packages:
+  ```bash
+  # Ubuntu/Debian
+  sudo apt-get install pulseaudio-utils
+
+  # Fedora/RHEL
+  sudo dnf install pulseaudio-utils
+  ```
+
 📚 **[Read the Full Documentation](https://m96-chan.github.io/ProcTap/)** for detailed guides and API reference.
 
 **From TestPyPI** (for testing pre-releases):
@@ -94,10 +105,13 @@ pip install -e .
 - WASAPI support
 - **No admin privileges required**
 
-**Linux (Under Development):**
-- Linux with PulseAudio or PipeWire
+**Linux (Experimental):**
+- Linux with PulseAudio or PipeWire (with pulseaudio-compat)
 - Python 3.10+
-- ⚠️ **WARNING:** Backend is not yet functional
+- `pulsectl` library: **automatically installed with `pip install proc-tap`**
+- `parec` command: install with `sudo apt-get install pulseaudio-utils`
+- ⚠️ **EXPERIMENTAL:** Basic PulseAudio support implemented
+- ⚠️ **LIMITATION:** Currently captures from entire sink monitor (may include other apps)
 
 **macOS (Planned):**
 - macOS 12.3+ (for ScreenCaptureKit)
@@ -247,6 +261,42 @@ except KeyboardInterrupt:
 finally:
     tap.close()
 ```
+
+---
+
+## 🐧 Linux Example
+
+```python
+from proctap import ProcessAudioTap, StreamConfig
+import wave
+
+pid = 12345  # Your target process ID
+
+# Create WAV file
+wav = wave.open("linux_capture.wav", "wb")
+wav.setnchannels(2)
+wav.setsampwidth(2)
+wav.setframerate(44100)
+
+def on_data(pcm, frames):
+    wav.writeframes(pcm)
+
+# Create stream config (Linux backend respects these settings)
+config = StreamConfig(sample_rate=44100, channels=2)
+
+try:
+    with ProcessAudioTap(pid, config=config, on_data=on_data):
+        print("⚠️  Make sure the process is actively playing audio!")
+        input("Recording... Press Enter to stop.\n")
+finally:
+    wav.close()
+```
+
+**Linux-specific requirements:**
+- Install system package: `sudo apt-get install pulseaudio-utils` (provides `parec` command)
+- Python dependency `pulsectl` is automatically installed with `pip install proc-tap`
+- The target process must be actively playing audio
+- See [examples/linux_pulse_basic.py](examples/linux_pulse_basic.py) for a complete example
 
 ---
 
