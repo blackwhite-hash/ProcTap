@@ -2,12 +2,12 @@
 
 # 📡 ProcTap
 
-**Per-Process Audio Capture for Windows**
+**Cross-Platform Per-Process Audio Capture**
 
 [![PyPI version](https://img.shields.io/pypi/v/proc-tap?color=blue&logo=pypi&logoColor=white)](https://pypi.org/project/proc-tap/)
 [![Python versions](https://img.shields.io/pypi/pyversions/proc-tap?logo=python&logoColor=white)](https://pypi.org/project/proc-tap/)
 [![Downloads](https://img.shields.io/pypi/dm/proc-tap?logo=pypi&logoColor=white)](https://pypi.org/project/proc-tap/)
-[![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-blue?logo=windows)](https://github.com/m96-chan/ProcTap)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux*%20%7C%20macOS*-blue)](https://github.com/m96-chan/ProcTap)
 
 [![Build wheels](https://github.com/m96-chan/ProcTap/actions/workflows/build-wheels.yml/badge.svg)](https://github.com/m96-chan/ProcTap/actions/workflows/build-wheels.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -16,10 +16,20 @@
 
 ---
 
-ProcTap is a Python library with a high-performance C++ backend that enables per-process audio capture on Windows 10/11 (20H1+) using ActivateAudioInterfaceAsync.
+ProcTap is a Python library for per-process audio capture with platform-specific backends.
 
 **Capture audio from a specific process only** — without system sounds or other app audio mixed in.
 Ideal for VRChat, games, DAWs, browsers, and AI audio analysis pipelines.
+
+### Platform Support
+
+| Platform | Status | Backend | Notes |
+|----------|--------|---------|-------|
+| **Windows** | ✅ **Fully Supported** | WASAPI (C++ native) | Windows 10/11 (20H1+) |
+| **Linux** | 🧪 **Experimental** | PulseAudio/PipeWire | Basic support, sink monitor capture |
+| **macOS** | 🧪 **Experimental** | Core Audio Process Tap | macOS 14.4+ (Sonoma) required |
+
+<sub>\* Linux and macOS support are experimental with limitations (see requirements). Windows is currently the only fully functional platform.</sub>
 
 </div>
 
@@ -27,22 +37,26 @@ Ideal for VRChat, games, DAWs, browsers, and AI audio analysis pipelines.
 
 ## 🚀 Features
 
-- 🎧 **Capture audio from a single target process**  
+- 🎧 **Capture audio from a single target process**
   (VRChat, games, browsers, Discord, DAWs, streaming tools, etc.)
 
-- ⚡ **Uses ActivateAudioInterfaceAsync (modern WASAPI)**  
-  → More stable than legacy IAudioClient2 loopback approaches
+- 🌍 **Cross-platform architecture**
+  → Windows (fully supported) | Linux (experimental) | macOS (experimental, 14.4+)
 
-- 🧵 **Low-latency, thread-safe C++ engine**
-  → 44.1 kHz / stereo / 16-bit PCM format
+- ⚡ **Platform-optimized backends**
+  → Windows: ActivateAudioInterfaceAsync (modern WASAPI)
+  → Linux: PulseAudio/PipeWire (experimental)
+  → macOS: Core Audio Process Tap API (macOS 14.4+)
+
+- 🧵 **Low-latency, thread-safe audio engine**
+  → 44.1 kHz / stereo / 16-bit PCM format (Windows)
 
 - 🐍 **Python-friendly high-level API**
   - Callback-based streaming
   - Async generator streaming (`async for`)
 
-- 🔌 **Native extension for high-throughput PCM delivery**
-
-- 🪟 **Windows-only (10/11, 20H1+)**
+- 🔌 **Native extensions for high-performance**
+  → C++ extension on Windows for optimal throughput
 
 ---
 
@@ -53,6 +67,17 @@ Ideal for VRChat, games, DAWs, browsers, and AI audio analysis pipelines.
 ```bash
 pip install proc-tap
 ```
+
+**Platform-specific dependencies are automatically installed:**
+- Windows: No additional dependencies
+- Linux: `pulsectl` is automatically installed, but you also need system packages:
+  ```bash
+  # Ubuntu/Debian
+  sudo apt-get install pulseaudio-utils
+
+  # Fedora/RHEL
+  sudo dnf install pulseaudio-utils
+  ```
 
 📚 **[Read the Full Documentation](https://m96-chan.github.io/ProcTap/)** for detailed guides and API reference.
 
@@ -74,11 +99,27 @@ pip install -e .
 
 ## 🛠 Requirements
 
-- Windows 10 / 11 (20H1 or later recommended)
+**Windows (Fully Supported):**
+- Windows 10 / 11 (20H1 or later)
 - Python 3.10+
 - WASAPI support
-- **No admin privileges required**  
-  (Per-process loopback capture works with standard user permissions)
+- **No admin privileges required**
+
+**Linux (Experimental):**
+- Linux with PulseAudio or PipeWire (with pulseaudio-compat)
+- Python 3.10+
+- `pulsectl` library: **automatically installed with `pip install proc-tap`**
+- `parec` command: install with `sudo apt-get install pulseaudio-utils`
+- ⚠️ **EXPERIMENTAL:** Basic PulseAudio support implemented
+- ⚠️ **LIMITATION:** Currently captures from entire sink monitor (may include other apps)
+
+**macOS (Experimental):**
+- macOS 14.4 (Sonoma) or later
+- Python 3.10+
+- Swift CLI helper binary (proctap-macos)
+- Audio capture permission
+- ⚠️ **EXPERIMENTAL:** Core Audio Process Tap API support implemented
+- ⚠️ **REQUIREMENT:** Requires macOS 14.4+ for Process Tap API
 
 ---
 
@@ -226,6 +267,87 @@ finally:
 
 ---
 
+## 🐧 Linux Example
+
+```python
+from proctap import ProcessAudioTap, StreamConfig
+import wave
+
+pid = 12345  # Your target process ID
+
+# Create WAV file
+wav = wave.open("linux_capture.wav", "wb")
+wav.setnchannels(2)
+wav.setsampwidth(2)
+wav.setframerate(44100)
+
+def on_data(pcm, frames):
+    wav.writeframes(pcm)
+
+# Create stream config (Linux backend respects these settings)
+config = StreamConfig(sample_rate=44100, channels=2)
+
+try:
+    with ProcessAudioTap(pid, config=config, on_data=on_data):
+        print("⚠️  Make sure the process is actively playing audio!")
+        input("Recording... Press Enter to stop.\n")
+finally:
+    wav.close()
+```
+
+**Linux-specific requirements:**
+- Install system package: `sudo apt-get install pulseaudio-utils` (provides `parec` command)
+- Python dependency `pulsectl` is automatically installed with `pip install proc-tap`
+- The target process must be actively playing audio
+- See [examples/linux_basic.py](examples/linux_basic.py) for a complete example
+
+---
+
+## 🍎 macOS Example
+
+```python
+from proctap import ProcessAudioTap, StreamConfig
+import wave
+
+pid = 12345  # Your target process ID
+
+# Create WAV file
+wav = wave.open("macos_capture.wav", "wb")
+wav.setnchannels(2)
+wav.setsampwidth(2)
+wav.setframerate(48000)  # macOS backend default is 48 kHz
+
+def on_data(pcm, frames):
+    wav.writeframes(pcm)
+
+# Create stream config (macOS backend respects these settings)
+config = StreamConfig(sample_rate=48000, channels=2)
+
+try:
+    with ProcessAudioTap(pid, config=config, on_data=on_data):
+        print("⚠️  Make sure the process is actively playing audio!")
+        print("⚠️  On first run, macOS will prompt for permission.")
+        input("Recording... Press Enter to stop.\n")
+finally:
+    wav.close()
+```
+
+**macOS-specific requirements:**
+- macOS 14.4 (Sonoma) or later
+- Swift CLI helper binary (proctap-macos) - automatically built during installation if Swift toolchain available
+- Audio capture permission - macOS will prompt on first run
+- The target process must be actively playing audio
+- See [examples/macos_basic.py](examples/macos_basic.py) for a complete example
+
+**Building the Swift helper manually:**
+```bash
+cd swift/proctap-macos
+swift build -c release
+cp .build/release/proctap-macos ../../src/proctap/bin/
+```
+
+---
+
 ## 🏗 Build From Source
 
 ```bash
@@ -234,10 +356,14 @@ cd ProcTap
 pip install -e .
 ```
 
-**Requirements:**
+**Windows Build Requirements:**
 - Visual Studio Build Tools
 - Windows SDK
 - CMake (if you modularize the C++ code)
+
+**Linux/macOS:**
+- No C++ compiler required (pure Python)
+- Note: Backends are not yet functional on these platforms
 
 ---
 
@@ -253,7 +379,9 @@ Contributions are welcome! We have structured issue templates to help guide your
 
 **Special Interest:**
 - PRs from WASAPI/C++ experts are especially appreciated
-- Help with cross-platform compatibility research
+- **Linux backend improvements** (PulseAudio/PipeWire per-app isolation)
+- **macOS backend testing** (Core Audio Process Tap on macOS 14.4+)
+- Cross-platform testing and compatibility
 - Performance profiling and optimization
 
 ---
@@ -268,7 +396,7 @@ MIT License
 
 ## 👤 Author
 
-**Yusuke Harada (m96-chan)**  
+**m96-chan**  
 Windows Audio / VRChat Tools / Python / C++  
 https://github.com/m96-chan
 
