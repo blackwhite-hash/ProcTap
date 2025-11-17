@@ -401,138 +401,74 @@ static OSStatus create_process_tap(ProcessTapState* state) {
         state->tap_id = tap_id;
         NSLog(@"[DEBUG] create_process_tap: Process tap created with ID: %u", tap_id);
 
-        // TODO: Aggregate device creation is currently disabled due to crashes
-        // For now, we'll try to use the process tap directly as the device ID
-        NSLog(@"[WARN] create_process_tap: Skipping aggregate device creation (experimental)");
-        state->device_id = tap_id;  // Try using tap ID as device ID
-
-        // Small delay for device initialization
-        usleep(50000);
-
-        atomic_store(&state->is_initialized, true);
-        return noErr;
-
-        // DISABLED CODE BELOW - Aggregate device creation causes crashes
-#if 0
+        // Re-enable aggregate device creation with fixed memory management
+        NSLog(@"[DEBUG] create_process_tap: Creating aggregate device...");
         // Generate a UUID for referencing the tap in aggregate device
         NSLog(@"[DEBUG] create_process_tap: Generating UUIDs...");
         CFUUIDRef tap_uuid = CFUUIDCreate(NULL);
         CFStringRef tap_uuid_str = CFUUIDCreateString(NULL, tap_uuid);
         CFRelease(tap_uuid);
 
+        // CRITICAL FIX: Use copy to safely retain the string
+        // __bridge without retain, then copy to get a retained copy
+        NSString* tap_uuid_str_ns = [(__bridge NSString*)tap_uuid_str copy];
+
         // Get default output device UID
         CFStringRef device_uid = get_default_output_device_uid();
         if (!device_uid) {
             snprintf(state->error_message, sizeof(state->error_message),
                     "Failed to get default output device");
-            CFRelease(tap_uuid_str);
+            CFRelease(tap_uuid_str);  // Clean up on error
             return kAudioHardwareUnspecifiedError;
         }
 
-        // Create aggregate device (optimized configuration)
+        // CRITICAL FIX: Use copy for device_uid as well
+        NSString* device_uid_str = [(__bridge NSString*)device_uid copy];
+
+        NSLog(@"[DEBUG] UUID strings created: tap=%@, device=%@", tap_uuid_str_ns, device_uid_str);
+
+        // Create aggregate device using NSDictionary (simpler with fixed memory management)
         NSLog(@"[DEBUG] create_process_tap: Creating aggregate device configuration...");
-        // Note: Using CFDictionaryRef instead of NSDictionary to avoid bridge cast issues
-        const void* keys[] = {
-            kAudioAggregateDeviceNameKey,
-            kAudioAggregateDeviceUIDKey,
-            kAudioAggregateDeviceMainSubDeviceKey,
-            kAudioAggregateDeviceIsPrivateKey,
-            kAudioAggregateDeviceIsStackedKey,
-            kAudioAggregateDeviceTapAutoStartKey,
-            kAudioAggregateDeviceSubDeviceListKey,
-            kAudioAggregateDeviceTapListKey
-        };
 
-        CFStringRef device_uid_cf = device_uid;  // Already a CFStringRef
-        CFStringRef tap_uid_cf = tap_uuid_str;    // Already a CFStringRef
-
-        // Create sub-device array
-        NSLog(@"[DEBUG] create_process_tap: Creating sub-device dictionary...");
-        const void* sub_device_keys[] = { kAudioSubDeviceUIDKey };
-        const void* sub_device_values[] = { device_uid_cf };
-        CFDictionaryRef sub_device = CFDictionaryCreate(
-            kCFAllocatorDefault,
-            sub_device_keys,
-            sub_device_values,
-            1,
-            &kCFTypeDictionaryKeyCallBacks,
-            &kCFTypeDictionaryValueCallBacks
-        );
-
-        NSLog(@"[DEBUG] create_process_tap: Sub-device dictionary created");
-
-        // Create tap array
-        NSLog(@"[DEBUG] create_process_tap: Creating tap dictionary...");
-        const void* tap_keys[] = {
-            kAudioSubTapDriftCompensationKey,
-            kAudioSubTapUIDKey
-        };
-        const void* tap_values[] = {
-            kCFBooleanTrue,
-            tap_uid_cf
-        };
-        CFDictionaryRef tap_dict = CFDictionaryCreate(
-            kCFAllocatorDefault,
-            tap_keys,
-            tap_values,
-            2,
-            &kCFTypeDictionaryKeyCallBacks,
-            &kCFTypeDictionaryValueCallBacks
-        );
-
-        NSLog(@"[DEBUG] create_process_tap: Tap dictionary created");
-
-        // Create arrays for sub-devices and taps
-        NSLog(@"[DEBUG] create_process_tap: Creating sub-device array...");
-        const void* sub_device_list[] = { sub_device };
-        CFArrayRef sub_device_array = CFArrayCreate(
-            kCFAllocatorDefault,
-            sub_device_list,
-            1,
-            &kCFTypeArrayCallBacks
-        );
-
-        NSLog(@"[DEBUG] create_process_tap: Sub-device array created");
-
-        NSLog(@"[DEBUG] create_process_tap: Creating tap array...");
-        const void* tap_list[] = { tap_dict };
-        CFArrayRef tap_array = CFArrayCreate(
-            kCFAllocatorDefault,
-            tap_list,
-            1,
-            &kCFTypeArrayCallBacks
-        );
-
-        NSLog(@"[DEBUG] create_process_tap: Tap array created");
+        // Debug: Log constant values and their string content
+        NSLog(@"[DEBUG] kAudioSubDeviceUIDKey: %p = '%@'", kAudioSubDeviceUIDKey, (__bridge NSString*)kAudioSubDeviceUIDKey);
+        NSLog(@"[DEBUG] kAudioSubTapDriftCompensationKey: %p = '%@'", kAudioSubTapDriftCompensationKey, (__bridge NSString*)kAudioSubTapDriftCompensationKey);
+        NSLog(@"[DEBUG] kAudioSubTapUIDKey: %p = '%@'", kAudioSubTapUIDKey, (__bridge NSString*)kAudioSubTapUIDKey);
+        NSLog(@"[DEBUG] kAudioAggregateDeviceNameKey: %p = '%@'", kAudioAggregateDeviceNameKey, (__bridge NSString*)kAudioAggregateDeviceNameKey);
 
         // Generate unique UID for aggregate device
-        NSLog(@"[DEBUG] create_process_tap: Generating aggregate device UUID...");
-        CFUUIDRef agg_uuid = CFUUIDCreate(NULL);
-        CFStringRef agg_uuid_str = CFUUIDCreateString(NULL, agg_uuid);
-        CFRelease(agg_uuid);
+        NSString* agg_device_uid = [NSString stringWithFormat:@"com.proctap.native.%@", [[NSUUID UUID] UUIDString]];
 
-        const void* values[] = {
-            CFSTR("ProcTap Native"),
-            agg_uuid_str,
-            device_uid_cf,
-            kCFBooleanTrue,
-            kCFBooleanFalse,
-            kCFBooleanTrue,
-            sub_device_array,
-            tap_array
+        NSLog(@"[DEBUG] About to create sub-device dictionary...");
+
+        // Create sub-device dictionary
+        NSDictionary* sub_device = @{
+            (__bridge NSString*)kAudioSubDeviceUIDKey: device_uid_str
         };
 
-        NSLog(@"[DEBUG] create_process_tap: Creating main device dictionary...");
-        CFDictionaryRef device_dict = CFDictionaryCreate(
-            kCFAllocatorDefault,
-            keys,
-            values,
-            8,
-            &kCFTypeDictionaryKeyCallBacks,
-            &kCFTypeDictionaryValueCallBacks
-        );
-        NSLog(@"[DEBUG] create_process_tap: Main device dictionary created");
+        NSLog(@"[DEBUG] Sub-device dictionary created");
 
+        // Create tap dictionary
+        NSDictionary* tap_dict = @{
+            (__bridge NSString*)kAudioSubTapDriftCompensationKey: @YES,
+            (__bridge NSString*)kAudioSubTapUIDKey: tap_uuid_str_ns
+        };
+
+        // Create main aggregate device configuration
+        NSDictionary* device_dict = @{
+            (__bridge NSString*)kAudioAggregateDeviceNameKey: @"ProcTap Native",
+            (__bridge NSString*)kAudioAggregateDeviceUIDKey: agg_device_uid,
+            (__bridge NSString*)kAudioAggregateDeviceMainSubDeviceKey: device_uid_str,
+            (__bridge NSString*)kAudioAggregateDeviceIsPrivateKey: @YES,
+            (__bridge NSString*)kAudioAggregateDeviceIsStackedKey: @NO,
+            (__bridge NSString*)kAudioAggregateDeviceTapAutoStartKey: @YES,
+            (__bridge NSString*)kAudioAggregateDeviceSubDeviceListKey: @[sub_device],
+            (__bridge NSString*)kAudioAggregateDeviceTapListKey: @[tap_dict]
+        };
+
+        NSLog(@"[DEBUG] create_process_tap: Device dictionary created");
+
+        // Create aggregate device
         AudioObjectPropertyAddress address = {
             .mSelector = kAudioPlugInCreateAggregateDevice,
             .mScope = kAudioObjectPropertyScopeGlobal,
@@ -540,24 +476,19 @@ static OSStatus create_process_tap(ProcessTapState* state) {
         };
 
         UInt32 aggregate_data_size = sizeof(AudioObjectID);
+        CFDictionaryRef device_dict_cf = (__bridge CFDictionaryRef)device_dict;
+
+        NSLog(@"[DEBUG] create_process_tap: Calling AudioObjectGetPropertyData...");
         status = AudioObjectGetPropertyData(
             kAudioObjectSystemObject,
             &address,
             sizeof(CFDictionaryRef),
-            &device_dict,
+            &device_dict_cf,
             &aggregate_data_size,
             &state->device_id
         );
 
-        // Clean up CF objects
-        CFRelease(device_dict);
-        CFRelease(tap_array);
-        CFRelease(sub_device_array);
-        CFRelease(tap_dict);
-        CFRelease(sub_device);
-        CFRelease(agg_uuid_str);
-        CFRelease(device_uid);
-        CFRelease(tap_uuid_str);
+        NSLog(@"[DEBUG] create_process_tap: AudioObjectGetPropertyData returned: %d, device_id: %u", status, state->device_id);
 
         if (status != noErr) {
             snprintf(state->error_message, sizeof(state->error_message),
@@ -565,12 +496,12 @@ static OSStatus create_process_tap(ProcessTapState* state) {
             return status;
         }
 
-        // Small delay for device initialization (optimized: 50ms instead of 100ms)
+        // Small delay for device initialization
         usleep(50000);
 
         atomic_store(&state->is_initialized, true);
+        NSLog(@"[DEBUG] create_process_tap: Aggregate device created successfully!");
         return noErr;
-#endif  // End of disabled aggregate device code
     }
 }
 
