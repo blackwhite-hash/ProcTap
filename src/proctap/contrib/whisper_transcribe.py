@@ -121,12 +121,12 @@ def find_pid_by_name(process_name: str) -> int:
 
     if len(matching_pids) > 1:
         print(f"Found {len(matching_pids)} matching processes:")
-        for pid, name in matching_pids:
-            print(f"  PID {pid}: {name}")
+        for proc_pid, name in matching_pids:
+            print(f"  PID {proc_pid}: {name}")
         print(f"\nUsing first match: PID {matching_pids[0][0]}")
 
-    pid: int = matching_pids[0][0]
-    return pid
+    result_pid: int = matching_pids[0][0]
+    return result_pid
 
 
 class RealtimeTranscriber:

@@ -68,9 +68,18 @@ class ProcessAudioCapture:
             native_format = temp_backend.get_format()
 
             # Extract and validate format values
-            sample_rate = int(native_format['sample_rate'])
-            channels = int(native_format['channels'])
-            bits_per_sample = int(native_format['bits_per_sample'])
+            sample_rate_val = native_format['sample_rate']
+            channels_val = native_format['channels']
+            bits_per_sample_val = native_format['bits_per_sample']
+
+            # Type guard: ensure we have int values
+            assert isinstance(sample_rate_val, int), f"Expected int for sample_rate, got {type(sample_rate_val)}"
+            assert isinstance(channels_val, int), f"Expected int for channels, got {type(channels_val)}"
+            assert isinstance(bits_per_sample_val, int), f"Expected int for bits_per_sample, got {type(bits_per_sample_val)}"
+
+            sample_rate = sample_rate_val
+            channels = channels_val
+            bits_per_sample = bits_per_sample_val
 
             # Create StreamConfig from native format
             self._cfg = StreamConfig(
@@ -181,11 +190,22 @@ class ProcessAudioCapture:
             - 'bits_per_sample': Bits per sample (e.g., 16)
         """
         fmt = self._backend.get_format()
+
+        # Extract and validate format values
+        sample_rate_val = fmt['sample_rate']
+        channels_val = fmt['channels']
+        bits_per_sample_val = fmt['bits_per_sample']
+
+        # Type guard: ensure we have int values
+        assert isinstance(sample_rate_val, int), f"Expected int for sample_rate, got {type(sample_rate_val)}"
+        assert isinstance(channels_val, int), f"Expected int for channels, got {type(channels_val)}"
+        assert isinstance(bits_per_sample_val, int), f"Expected int for bits_per_sample, got {type(bits_per_sample_val)}"
+
         # Return only int values for basic format info
         return {
-            'sample_rate': int(fmt['sample_rate']),
-            'channels': int(fmt['channels']),
-            'bits_per_sample': int(fmt['bits_per_sample']),
+            'sample_rate': sample_rate_val,
+            'channels': channels_val,
+            'bits_per_sample': bits_per_sample_val,
         }
 
     def read(self, timeout: float = 1.0) -> Optional[bytes]:
