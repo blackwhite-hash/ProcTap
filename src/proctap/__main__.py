@@ -33,11 +33,17 @@ def find_pid_by_name(process_name: str) -> int:
 
     for proc in psutil.process_iter(['pid', 'name']):
         try:
-            if proc.info['name'].lower() == process_name.lower():
-                return proc.info['pid']
+            proc_name = proc.info.get('name')
+            proc_pid = proc.info.get('pid')
+
+            if proc_name is None or proc_pid is None:
+                continue
+
+            if proc_name.lower() == process_name.lower():
+                return int(proc_pid)
             # Also match without .exe extension
-            if proc.info['name'].lower() == f"{process_name.lower()}.exe":
-                return proc.info['pid']
+            if proc_name.lower() == f"{process_name.lower()}.exe":
+                return int(proc_pid)
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             continue
 
