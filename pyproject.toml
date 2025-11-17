@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "proc-tap"
-version = "0.2.0"
+version = "0.3.0"
 description = "Cross-platform process-level audio capture library"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -67,9 +67,13 @@ contrib = [
     "faster-whisper>=1.0.0",
 ]
 # High-quality resampling using libsamplerate (optional, scipy fallback available)
-# Note: May fail to build on some platforms (especially Windows with Python 3.13+)
+# Note: samplerate package may fail to build on Windows with Python 3.13+ due to
+# C compiler compatibility issues (as of 2025-01). Non-Windows platforms and
+# Python <3.13 should work fine. If installation fails, scipy's polyphase
+# filtering provides excellent quality as a fallback (though 30-50% slower).
+# This is an optional optimization - the converter works well without it.
 hq-resample = [
-    "samplerate>=0.1.0",
+    "samplerate>=0.1.0; python_version < '3.13' or sys_platform != 'win32'",
 ]
 
 [tool.setuptools.packages.find]
