@@ -26,10 +26,10 @@ Ideal for VRChat, games, DAWs, browsers, and AI audio analysis pipelines.
 | Platform | Status | Backend | Notes |
 |----------|--------|---------|-------|
 | **Windows** | ✅ **Fully Supported** | WASAPI (C++ native) | Windows 10/11 (20H1+) |
-| **Linux** | 🧪 **Experimental** | PulseAudio/PipeWire | Basic support, sink monitor capture |
+| **Linux** | ✅ **Fully Supported** | PipeWire Native / PulseAudio | Per-process isolation, auto-fallback (v0.4.0+) |
 | **macOS** | 🧪 **Experimental** | Core Audio Process Tap | macOS 14.4+ (Sonoma) required |
 
-<sub>\* Linux and macOS support are experimental with limitations (see requirements). Windows is currently the only fully functional platform.</sub>
+<sub>\* Linux is fully supported with PipeWire/PulseAudio (v0.4.0+). macOS support is experimental (see requirements).</sub>
 
 </div>
 
