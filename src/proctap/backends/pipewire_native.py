@@ -595,11 +595,11 @@ class PipeWireNative:
             raise PipeWireError("PipeWire library not available")
 
         self._initialized = False
-        self._main_loop: Optional[ctypes.POINTER(pw_main_loop)] = None
-        self._context: Optional[ctypes.POINTER(pw_context)] = None
-        self._core: Optional[ctypes.POINTER(pw_core)] = None
-        self._stream: Optional[ctypes.POINTER(pw_stream)] = None
-        self._process_callback: Optional[PROCESS_CALLBACK] = None
+        self._main_loop: Optional[object] = None  # ctypes.POINTER(pw_main_loop)
+        self._context: Optional[object] = None  # ctypes.POINTER(pw_context)
+        self._core: Optional[object] = None  # ctypes.POINTER(pw_core)
+        self._stream: Optional[object] = None  # ctypes.POINTER(pw_stream)
+        self._process_callback: Optional[object] = None  # PROCESS_CALLBACK type
         self._user_callback: Optional[AudioCallback] = None
 
     def init(self) -> None:
@@ -609,6 +609,8 @@ class PipeWireNative:
         Raises:
             PipeWireInitError: If initialization fails
         """
+        assert _pw_lib is not None, "PipeWire library not loaded"
+
         if self._initialized:
             return
 
@@ -621,6 +623,8 @@ class PipeWireNative:
 
     def deinit(self) -> None:
         """Deinitialize PipeWire."""
+        assert _pw_lib is not None, "PipeWire library not loaded"
+
         if not self._initialized:
             return
 
@@ -635,6 +639,8 @@ class PipeWireNative:
         Raises:
             PipeWireInitError: If main loop creation fails
         """
+        assert _pw_lib is not None, "PipeWire library not loaded"
+
         try:
             self._main_loop = _pw_lib.pw_main_loop_new(None)
             if not self._main_loop:
@@ -650,6 +656,8 @@ class PipeWireNative:
 
     def destroy_main_loop(self) -> None:
         """Destroy main loop."""
+        assert _pw_lib is not None, "PipeWire library not loaded"
+
         if self._main_loop:
             _pw_lib.pw_main_loop_destroy(self._main_loop)
             self._main_loop = None
@@ -662,6 +670,8 @@ class PipeWireNative:
         Raises:
             PipeWireInitError: If context creation fails
         """
+        assert _pw_lib is not None, "PipeWire library not loaded"
+
         if not self._main_loop:
             raise PipeWireInitError(
                 "Cannot create context: main loop not created. "
@@ -688,6 +698,8 @@ class PipeWireNative:
 
     def destroy_context(self) -> None:
         """Destroy context."""
+        assert _pw_lib is not None, "PipeWire library not loaded"
+
         if self._context:
             _pw_lib.pw_context_destroy(self._context)
             self._context = None
@@ -700,6 +712,8 @@ class PipeWireNative:
         Raises:
             PipeWireInitError: If core connection fails
         """
+        assert _pw_lib is not None, "PipeWire library not loaded"
+
         if not self._context:
             raise PipeWireInitError(
                 "Cannot connect to core: context not created. "
@@ -729,7 +743,7 @@ class PipeWireNative:
         Note: This method does not raise exceptions to ensure cleanup always completes.
         """
         try:
-            if self._stream:
+            if self._stream and _pw_lib is not None:
                 _pw_lib.pw_stream_destroy(self._stream)
                 self._stream = None
         except Exception as e:
@@ -796,6 +810,8 @@ def build_audio_format_params(
     Returns:
         Tuple of (params pointer, buffer size)
     """
+    assert _pw_lib is not None, "PipeWire library not loaded"
+
     # Allocate buffer for POD (1024 bytes should be enough)
     buffer_size = 1024
     buffer = ctypes.create_string_buffer(buffer_size)
@@ -956,6 +972,8 @@ class PipeWireNodeDiscovery:
         Raises:
             PipeWireError: If discovery fails
         """
+        assert _pw_lib is not None, "PipeWire library not loaded"
+
         self._target_pid = pid
         self._found_nodes = []
 
@@ -1031,7 +1049,7 @@ class PipeWireNodeDiscovery:
         Note: This method does not raise exceptions to ensure cleanup always completes.
         """
         try:
-            if self._registry:
+            if self._registry and _pw_lib is not None:
                 _pw_lib.pw_registry_destroy(self._registry)
                 self._registry = None
         except Exception as e:
@@ -1151,6 +1169,8 @@ class PipeWireStreamCapture:
         Args:
             target_id: Target node ID
         """
+        assert _pw_lib is not None, "PipeWire library not loaded"
+
         try:
             # Signal that thread has started
             self._thread_started.set()
@@ -1177,6 +1197,8 @@ class PipeWireStreamCapture:
         Raises:
             PipeWireError: If capture fails to start
         """
+        assert _pw_lib is not None, "PipeWire library not loaded"
+
         if self._running:
             logger.warning("Stream capture already running")
             return
@@ -1312,7 +1334,7 @@ class PipeWireStreamCapture:
         self._running = False
 
         # Stop main loop (this will cause thread to exit)
-        if self._pw._main_loop:
+        if self._pw._main_loop and _pw_lib is not None:
             try:
                 _pw_lib.pw_main_loop_quit(self._pw._main_loop)
             except Exception as e:
