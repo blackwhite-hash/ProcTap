@@ -11,7 +11,7 @@ import logging
 import threading
 import time
 from collections import deque
-from typing import Optional
+from typing import Optional, cast
 
 import numpy as np
 
@@ -101,7 +101,7 @@ class ProcessAudioSource(discord.AudioSource):
         config = StreamConfig(
             sample_rate=DISCORD_SAMPLE_RATE,
             channels=DISCORD_CHANNELS,
-            sample_size=DISCORD_SAMPLE_SIZE
+            sample_width=DISCORD_SAMPLE_SIZE
         )
         self._tap = ProcessAudioCapture(pid=self.pid, config=config)
         self._tap.start()
@@ -197,7 +197,7 @@ class ProcessAudioSource(discord.AudioSource):
             audio_data = np.clip(audio_data * self.gain, -32768, 32767)
             audio_data = audio_data.astype(np.int16)
 
-            return audio_data.tobytes()
+            return cast(bytes, audio_data.tobytes())
 
         except Exception:
             logger.exception("Error applying gain")
