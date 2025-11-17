@@ -73,6 +73,7 @@ typedef struct {
     UInt32 sample_rate;
     UInt32 channels;
     UInt32 bits_per_sample;
+    AudioStreamBasicDescription format;  // Tap stream format
 
     // PIDs
     pid_t* include_pids;
@@ -289,20 +290,39 @@ static OSStatus io_proc_callback(
 ) {
     ProcessTapState* state = (ProcessTapState*)inClientData;
 
+    static int call_count = 0;
+    if (call_count < 5) {
+        NSLog(@"[DEBUG] IOProc callback called (count: %d)", ++call_count);
+    }
+
     if (!state || !atomic_load(&state->is_running)) {
+        NSLog(@"[DEBUG] IOProc: state invalid or not running");
         return noErr;
     }
 
     if (inInputData && inInputData->mNumberBuffers > 0) {
         const AudioBuffer* buffer = &inInputData->mBuffers[0];
 
+        if (call_count <= 5) {
+            NSLog(@"[DEBUG] IOProc: mNumberBuffers=%u, mDataByteSize=%u",
+                  inInputData->mNumberBuffers, buffer->mDataByteSize);
+        }
+
         if (buffer->mData && buffer->mDataByteSize > 0) {
             // Write to ring buffer
-            ring_buffer_write(
+            size_t written = ring_buffer_write(
                 state->ring_buffer,
                 (const uint8_t*)buffer->mData,
                 buffer->mDataByteSize
             );
+
+            if (call_count <= 5) {
+                NSLog(@"[DEBUG] IOProc: Wrote %zu bytes to ring buffer", written);
+            }
+        }
+    } else {
+        if (call_count <= 5) {
+            NSLog(@"[DEBUG] IOProc: No input data or buffers");
         }
     }
 
@@ -401,6 +421,28 @@ static OSStatus create_process_tap(ProcessTapState* state) {
         state->tap_id = tap_id;
         NSLog(@"[DEBUG] create_process_tap: Process tap created with ID: %u", tap_id);
 
+        // CRITICAL: Read tap stream format (must be done before creating aggregate device)
+        // This matches AudioCap line 133: tapID.readAudioTapStreamBasicDescription()
+        NSLog(@"[DEBUG] create_process_tap: Reading tap stream format...");
+        AudioStreamBasicDescription tap_format;
+        UInt32 tap_format_size = sizeof(tap_format);
+        AudioObjectPropertyAddress tap_format_address = {
+            .mSelector = kAudioTapPropertyFormat,
+            .mScope = kAudioObjectPropertyScopeGlobal,
+            .mElement = kAudioObjectPropertyElementMain
+        };
+
+        status = AudioObjectGetPropertyData(tap_id, &tap_format_address, 0, NULL, &tap_format_size, &tap_format);
+        if (status != noErr) {
+            NSLog(@"[DEBUG] create_process_tap: Failed to read tap format: %d", status);
+            // Continue anyway - this might not be fatal
+        } else {
+            NSLog(@"[DEBUG] create_process_tap: Tap format: %.0f Hz, %u channels, %u bits/sample",
+                  tap_format.mSampleRate, tap_format.mChannelsPerFrame, tap_format.mBitsPerChannel);
+            // Store format in state for later use
+            state->format = tap_format;
+        }
+
         // Re-enable aggregate device creation with fixed memory management
         NSLog(@"[DEBUG] create_process_tap: Creating aggregate device...");
         // Generate a UUID for referencing the tap in aggregate device
@@ -429,12 +471,6 @@ static OSStatus create_process_tap(ProcessTapState* state) {
 
         // Create aggregate device using NSDictionary (simpler with fixed memory management)
         NSLog(@"[DEBUG] create_process_tap: Creating aggregate device configuration...");
-
-        // Debug: Log constant values and their string content
-        NSLog(@"[DEBUG] kAudioSubDeviceUIDKey: %p = '%@'", kAudioSubDeviceUIDKey, (__bridge NSString*)kAudioSubDeviceUIDKey);
-        NSLog(@"[DEBUG] kAudioSubTapDriftCompensationKey: %p = '%@'", kAudioSubTapDriftCompensationKey, (__bridge NSString*)kAudioSubTapDriftCompensationKey);
-        NSLog(@"[DEBUG] kAudioSubTapUIDKey: %p = '%@'", kAudioSubTapUIDKey, (__bridge NSString*)kAudioSubTapUIDKey);
-        NSLog(@"[DEBUG] kAudioAggregateDeviceNameKey: %p = '%@'", kAudioAggregateDeviceNameKey, (__bridge NSString*)kAudioAggregateDeviceNameKey);
 
         // Generate unique UID for aggregate device
         NSString* agg_device_uid = [NSString stringWithFormat:@"com.proctap.native.%@", [[NSUUID UUID] UUIDString]];
