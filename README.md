@@ -26,10 +26,10 @@ Ideal for VRChat, games, DAWs, browsers, and AI audio analysis pipelines.
 | Platform | Status | Backend | Notes |
 |----------|--------|---------|-------|
 | **Windows** | ✅ **Fully Supported** | WASAPI (C++ native) | Windows 10/11 (20H1+) |
-| **Linux** | ✅ **Fully Supported** | PipeWire Native / PulseAudio | Per-process isolation, auto-fallback (v0.4.0+) |
+| **Linux** | ✅ **Fully Supported** | PipeWire Native / PulseAudio | Per-process isolation, auto-fallback (v0.3.0+) |
 | **macOS** | 🧪 **Experimental** | Core Audio Process Tap | macOS 14.4+ (Sonoma) required |
 
-<sub>\* Linux is fully supported with PipeWire/PulseAudio (v0.4.0+). macOS support is experimental (see requirements).</sub>
+<sub>\* Linux is fully supported with PipeWire/PulseAudio (v0.3.0+). macOS support is experimental (see requirements).</sub>
 
 </div>
 
@@ -41,11 +41,11 @@ Ideal for VRChat, games, DAWs, browsers, and AI audio analysis pipelines.
   (VRChat, games, browsers, Discord, DAWs, streaming tools, etc.)
 
 - 🌍 **Cross-platform architecture**
-  → Windows (fully supported) | Linux (fully supported, v0.4.0+) | macOS (experimental, 14.4+)
+  → Windows (fully supported) | Linux (fully supported, v0.3.0+) | macOS (experimental, 14.4+)
 
 - ⚡ **Platform-optimized backends**
   → Windows: ActivateAudioInterfaceAsync (modern WASAPI)
-  → Linux: PipeWire Native API / PulseAudio (fully supported, v0.4.0+)
+  → Linux: PipeWire Native API / PulseAudio (fully supported, v0.3.0+)
   → macOS: Core Audio Process Tap API (macOS 14.4+)
 
 - 🧵 **Low-latency, thread-safe audio engine**
@@ -157,7 +157,7 @@ ps aux | grep VRChat
 
 **FFmpeg Format Arguments:**
 
-The CLI outputs raw PCM in s16le (signed 16-bit little-endian) format. FFmpeg needs these arguments:
+The CLI outputs raw PCM in s16le (signed 16-bit little-endian) format by default, but can be customized via `--sample-rate` and `--channels` options. FFmpeg needs these arguments:
 - `-f s16le`: PCM format
 - `-ar RATE`: Sample rate (must match `--sample-rate`, default 48000)
 - `-ac CHANNELS`: Number of channels (must match `--channels`, default 2)
@@ -173,14 +173,14 @@ The CLI outputs raw PCM in s16le (signed 16-bit little-endian) format. FFmpeg ne
 - WASAPI support
 - **No admin privileges required**
 
-**Linux (Fully Supported - v0.4.0+):**
+**Linux (Fully Supported - v0.3.0+):**
 - Linux with PulseAudio or PipeWire
 - Python 3.10+
 - **Auto-detection:** Automatically selects best available backend
-- **Native PipeWire API** (recommended):
+- **Native PipeWire API** (in development, experimental):
   - `libpipewire-0.3-dev`: `sudo apt-get install libpipewire-0.3-dev`
-  - Ultra-low latency: ~2-5ms
-  - Auto-selected when available
+  - Target latency: ~2-5ms (when fully implemented)
+  - Auto-selected when available (may fall back to subprocess)
 - **PipeWire subprocess:**
   - `pw-record`: install with `sudo apt-get install pipewire-media-session`
 - **PulseAudio fallback:**
