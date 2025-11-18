@@ -8,7 +8,7 @@ ProcTap is a cross-platform Python library for capturing audio from specific pro
 
 **Platform Support:**
 - **Windows**: ✅ Fully implemented using WASAPI Process Loopback (C++ native extension)
-- **Linux**: 🧪 Experimental - PulseAudio backend (basic implementation with limitations)
+- **Linux**: ✅ Fully implemented - PipeWire Native/PulseAudio (per-process isolation, v0.3.0+)
 - **macOS**: 🧪 Experimental - Core Audio Process Tap via Swift CLI helper (macOS 14.4+)
 
 **Key Characteristics:**
@@ -16,7 +16,7 @@ ProcTap is a cross-platform Python library for capturing audio from specific pro
 - Low-latency streaming (10ms default buffer on Windows)
 - Platform-specific implementations:
   - Windows: WASAPI C++ extension (Windows 10 20H1+)
-  - Linux: PulseAudio backend (experimental)
+  - Linux: PipeWire Native API / PulseAudio (fully supported, v0.3.0+)
   - macOS: Core Audio Process Tap via Swift helper (macOS 14.4+, experimental)
 - Dual API: callback-based and async iterator patterns
 
@@ -146,7 +146,8 @@ backends/__init__.py (Platform Detection)
 **Linux Backend** ([backends/linux.py](src/proctap/backends/linux.py)):
 - ✅ Fully implemented with multiple strategies (v0.3.0+)
 - **PipeWire Native API** ([backends/pipewire_native.py](src/proctap/backends/pipewire_native.py)):
-  - Ultra-low latency: ~2-5ms (vs ~10-20ms subprocess-based)
+  - 🚧 In development: Core functionality implemented, integration ongoing
+  - Target latency: ~2-5ms (vs ~10-20ms subprocess-based)
   - Direct C API bindings via ctypes
   - Auto-selected when available
 - **Strategy Pattern:** PipeWire Native → PipeWire subprocess (`pw-record`) → PulseAudio (`parec`)
@@ -199,7 +200,8 @@ Audio Source (Process-specific)
 **[backends/](src/proctap/backends/)** - Platform-specific implementations:
 - `base.py`: `AudioBackend` abstract base class
 - `windows.py`: Windows implementation (wraps `_native.cpp` + format conversion)
-- `linux.py`: Linux PulseAudio implementation (experimental)
+- `linux.py`: Linux PipeWire/PulseAudio implementation (fully supported, v0.3.0+)
+- `pipewire_native.py`: Native PipeWire API bindings (in development)
 - `macos.py`: macOS Core Audio Process Tap implementation (experimental)
 - `converter.py`: Audio format converter (sample rate, channels, bit depth)
 
@@ -230,8 +232,11 @@ The build system ([setup.py](setup.py)) automatically detects the platform and b
 
 **Linux Builds:**
 - No C++ extension required (pure Python)
-- PulseAudio backend uses `pulsectl` library and `parec` command
-- System dependencies: `pulseaudio-utils` package
+- Multiple backend strategies:
+  - PipeWire Native: `libpipewire-0.3-dev` (optional, for ultra-low latency)
+  - PipeWire subprocess: `pw-record` from `pipewire-utils`
+  - PulseAudio: `parec` from `pulseaudio-utils`
+- Python dependencies: `pulsectl` library (automatically installed)
 
 **macOS Builds:**
 - Swift CLI helper (proctap-macos) built with SwiftPM
@@ -258,7 +263,10 @@ The build system ([setup.py](setup.py)) automatically detects the platform and b
 - **macOS**: No additional dependencies (uses Swift CLI helper binary)
 
 **System Dependencies (Linux only):**
-- `parec` command from `pulseaudio-utils` package
+- One of the following (auto-detected with graceful fallback):
+  - **PipeWire Native** (recommended): `libpipewire-0.3-dev`
+  - **PipeWire subprocess**: `pw-record` from `pipewire-utils`
+  - **PulseAudio**: `parec` from `pulseaudio-utils`
 - PulseAudio or PipeWire with pulseaudio-compat
 
 **Examples:**
@@ -351,13 +359,14 @@ Raw PCM data is returned as `bytes` to user callbacks/iterators.
 
 **Linux Backend:**
 1. **Native PipeWire API Implementation** ([backends/pipewire_native.py](src/proctap/backends/pipewire_native.py)):
-   - ✅ COMPLETED (v0.4.0+):
-     * SPA POD format parameters
-     * Registry API for node discovery
-     * Comprehensive error handling
-     * Thread management
-     * Integration with LinuxBackend
-   - ✅ Testing: Unit tests and examples added
+   - 🚧 IN DEVELOPMENT (v0.3.0+):
+     * ✅ Core API bindings (pw_init, pw_main_loop, pw_context, pw_stream)
+     * ✅ Stream capture framework (pw_stream_new_simple, dequeue/queue buffers)
+     * ✅ Registry API for node discovery
+     * ✅ Basic thread management
+     * ⚠️  Incomplete: SPA POD format parameters optimization
+     * ⚠️  Integration with LinuxBackend: Experimental, may fall back to subprocess
+   - ✅ Testing: Basic unit tests and examples added
 
 2. **Cross-distribution Testing** (Ongoing):
    - Verify on Ubuntu, Fedora, Arch Linux, Debian
