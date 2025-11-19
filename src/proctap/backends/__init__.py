@@ -46,12 +46,13 @@ def get_backend(pid: int, resample_quality: ResampleQuality = 'best') -> "AudioB
 
     elif system == "Linux":
         from .linux import LinuxBackend
-        # TODO: Update LinuxBackend to return standard format
+        # LinuxBackend now returns standard format (48kHz/2ch/float32)
         return LinuxBackend(
             pid=pid,
-            sample_rate=48000,
+            sample_rate=44100,  # Native format (will be converted to 48kHz)
             channels=2,
-            sample_width=4,
+            sample_width=2,  # Native format: 16-bit int (will be converted to float32)
+            resample_quality=resample_quality,
         )
 
     elif system == "Darwin":  # macOS
