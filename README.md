@@ -314,6 +314,66 @@ def on_data(pcm: bytes, frames: int):
 
 ---
 
+## 🎨 Advanced Features (Contrib)
+
+ProcTap includes optional contrib modules for advanced audio processing:
+
+### 📊 Real-Time Audio Analysis & Visualization
+
+Monitor and analyze audio from processes in real-time with spectrum analysis, volume meters, and frequency visualization.
+
+**CLI Mode** (Terminal-based):
+```bash
+# Analyze by process ID
+python -m proctap.contrib.analysis --pid 12345
+
+# Analyze by process name
+python -m proctap.contrib.analysis --name "VRChat.exe"
+```
+
+**GUI Mode** (Matplotlib window):
+```bash
+# Launch GUI visualizer
+python -m proctap.contrib.analysis --pid 12345 --gui
+
+# Adjust FFT size for better frequency resolution
+python -m proctap.contrib.analysis --pid 12345 --gui --fft-size 4096
+```
+
+**Features:**
+- 📈 **Real-time spectrum analyzer** (FFT-based frequency analysis)
+- 🔊 **Volume meters** (RMS and peak levels in dB)
+- 🎵 **Frequency band analysis** (Sub, Bass, Mid, Treble, Presence, Brilliance)
+- 💻 **Terminal visualization** (CLI mode) or 📊 **Matplotlib plots** (GUI mode)
+- ⚙️ **Configurable FFT size** (512, 1024, 2048, 4096, 8192)
+
+**Programmatic Usage:**
+```python
+from proctap import ProcessAudioCapture
+from proctap.contrib import AudioAnalyzer, CLIVisualizer
+
+# Create analyzer
+analyzer = AudioAnalyzer(sample_rate=48000, fft_size=2048)
+
+# Create callback for audio processing
+def on_audio(pcm: bytes, frames: int):
+    analyzer.process_audio(pcm)
+
+# Start audio capture with callback
+tap = ProcessAudioCapture(pid=12345, on_data=on_audio)
+tap.start()
+
+# Create and run visualizer
+visualizer = CLIVisualizer(analyzer)
+visualizer.start()  # Blocking - displays in terminal
+```
+
+**Optional Dependencies:**
+- CLI mode: Included (uses numpy/scipy)
+- GUI mode: Requires `matplotlib` (`pip install matplotlib`)
+
+---
+
 ## 📚 Example: Save to WAV
 
 ```python
