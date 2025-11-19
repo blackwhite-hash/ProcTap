@@ -213,3 +213,6 @@ output.wav
 profiling_results/
 *.prof
 *.pstats
+
+# Claude test files
+.claude_test/

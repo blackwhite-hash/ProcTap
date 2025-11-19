@@ -134,12 +134,13 @@ backends/__init__.py (Platform Detection)
 **Windows Backend** ([backends/windows.py](src/proctap/backends/windows.py)):
 - Wraps `_native.cpp` C++ extension
 - Per-process audio capture requires `ActivateAudioInterfaceAsync` (Windows 10 20H1+)
-- Native WASAPI format: 44.1kHz, 2ch, 16-bit PCM (fixed in C++)
+- Native WASAPI format: 48kHz, 2ch, float32 (IEEE 754) - optimal quality
+- Fallback: 44.1kHz, 2ch, 16-bit PCM if float32 initialization fails
 - **Audio Format Conversion** ([backends/converter.py](src/proctap/backends/converter.py)):
-  - Python-based audio format conversion using scipy
+  - Python-based audio format conversion using scipy/numpy
   - Supports sample rate conversion (resampling)
   - Supports channel conversion (mono ↔ stereo)
-  - Supports bit depth conversion (8/16/24/32-bit)
+  - Supports bit depth conversion (8/16/24/32-bit, int/float)
   - Automatically converts WASAPI output to match `StreamConfig`
   - No conversion overhead if formats already match
 
@@ -277,8 +278,18 @@ The build system ([setup.py](setup.py)) automatically detects the platform and b
 
 **Windows Backend:**
 
-The Windows native extension uses a **fixed audio format** hardcoded in [_native.cpp:329-336](src/proctap/_native.cpp#L329-L336):
+The Windows native extension attempts 48kHz float32 first, with fallback to 44.1kHz int16 ([_native.cpp:329-365](src/proctap/_native.cpp#L329-L365)):
 
+**Primary Format (Preferred):**
+- **Sample Rate:** 48,000 Hz
+- **Channels:** 2 (stereo)
+- **Bits per Sample:** 32-bit
+- **Format:** IEEE float (WAVE_FORMAT_IEEE_FLOAT)
+- **Value Range:** -1.0 to +1.0 (normalized)
+- **Block Align:** 8 bytes (2 channels × 32 bits / 8)
+- **Byte Rate:** 384,000 bytes/sec
+
+**Fallback Format (If float32 fails):**
 - **Sample Rate:** 44,100 Hz (CD quality)
 - **Channels:** 2 (stereo)
 - **Bits per Sample:** 16-bit
@@ -286,61 +297,59 @@ The Windows native extension uses a **fixed audio format** hardcoded in [_native
 - **Block Align:** 4 bytes (2 channels × 16 bits / 8)
 - **Byte Rate:** 176,400 bytes/sec
 
-**Format Conversion (New in v0.2.1):**
+**Format Behavior:**
 
-The `StreamConfig` parameter now controls output format through automatic conversion:
+The Windows backend **always returns 48kHz float32** to user code:
 
-- **Native Format (C++)**: Fixed at 44.1kHz, 2ch, 16-bit PCM (WASAPI requirement)
-- **Output Format (Python)**: Converted to match `StreamConfig` settings
-- **Conversion Features**:
-  - Sample rate conversion (e.g., 44.1kHz → 48kHz)
-  - Channel conversion (stereo ↔ mono)
-  - Bit depth conversion (8/16/24/32-bit)
-  - Automatic bypass when formats match (zero overhead)
-- **Resampling Quality** (automatic priority order):
-  1. **libsamplerate** (optional, highest quality)
-     - Professional-grade SRC (Sample Rate Converter)
-     - SINC interpolation with minimal artifacts
-     - Install with: `pip install proc-tap[hq-resample]`
-     - **Note**: May fail to build on Windows with Python 3.13+
-  2. **scipy.signal.resample_poly** (default fallback, high quality)
-     - Polyphase filtering
-     - Used if libsamplerate is not installed or unavailable
-  3. **scipy.signal.resample** (final fallback)
-     - FFT-based resampling
-     - Used only if both above methods fail
-- **Usage**:
-  ```python
-  # Use native format (no conversion)
-  tap = ProcessAudioCapture(pid, config=None)
+- **If native is 48kHz float32**: No conversion (zero overhead)
+- **If fallback to 44.1kHz int16**: Automatically converts to 48kHz float32 using AudioConverter
 
-  # Convert to 48kHz stereo (uses libsamplerate if available, scipy otherwise)
-  config = StreamConfig(sample_rate=48000, channels=2)
-  tap = ProcessAudioCapture(pid, config=config)
-  ```
+This ensures consistent output format regardless of which WASAPI format succeeds.
+
+**Important Notes:**
+- `StreamConfig` has been deprecated and removed
+- All backends now return their native high-quality format
+- Windows: 48kHz float32
+- Linux: 44.1kHz int16 (configurable)
+- macOS: 48kHz int16 (configurable)
+
+**For WAV file output:**
+
+Users must convert float32 to int16 for standard WAV files:
+
+```python
+import numpy as np
+
+def on_data(pcm: bytes, frames: int):
+    # Convert float32 to int16
+    float_samples = np.frombuffer(pcm, dtype=np.float32)
+    int16_samples = (np.clip(float_samples, -1.0, 1.0) * 32767).astype(np.int16)
+    wav.writeframes(int16_samples.tobytes())
+```
 
 **Linux Backend:**
 
-The PulseAudio backend respects the `StreamConfig` settings:
+The PulseAudio backend default format:
 - Default: 44,100 Hz, 2 channels, 16-bit PCM
-- Configurable via `StreamConfig` parameter
+- Returns raw int16 PCM data
 
 **macOS Backend:**
 
-The Core Audio Process Tap backend respects the `StreamConfig` settings:
+The Core Audio Process Tap backend default format:
 - Default: 48,000 Hz, 2 channels, 16-bit PCM
-- Configurable via `StreamConfig` parameter
-- Format specified via command-line args to Swift helper
+- Returns raw int16 PCM data
 
 Raw PCM data is returned as `bytes` to user callbacks/iterators.
 
 ## Known Issues and TODOs
 
 **Windows Backend:**
-1. ✅ **Audio Format Conversion** - COMPLETED in v0.2.1
-   - StreamConfig now controls output format via Python-based conversion
-   - WASAPI native format (44.1kHz/2ch/16bit) automatically converted to desired format
-   - See [backends/converter.py](src/proctap/backends/converter.py)
+1. ✅ **LOOPBACK Format Detection** - COMPLETED
+   - LOOPBACKモードでは実際のミックスフォーマットが指定と異なる可能性がある
+   - `Initialize()`成功後、`GetMixFormat()`で実際のフォーマットを取得
+   - 実際のフォーマットと指定が異なる場合は`m_waveFormat`を更新
+   - Python側の`AudioConverter`が自動的に48kHz float32に変換
+   - 詳細ログで実際のフォーマットを確認可能（OutputDebugString）
 
 2. **Frame Count Calculation** ([core.py:207](src/proctap/core.py#L207)):
    - Currently returns `-1` for frame count in callbacks

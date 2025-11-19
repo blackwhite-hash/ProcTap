@@ -142,7 +142,7 @@ class LinuxAudioStrategy(ABC):
         pass
 
     @abstractmethod
-    def get_format(self) -> dict[str, int | object]:
+    def get_format(self) -> dict[str, int | str]:
         """
         Get audio format information.
 
@@ -566,7 +566,7 @@ class PulseAudioStrategy(LinuxAudioStrategy):
             self._pulse = None
             logger.debug("Closed PulseAudio connection")
 
-    def get_format(self) -> dict[str, int | object]:
+    def get_format(self) -> dict[str, int | str]:
         """Get audio format information."""
         return {
             'sample_rate': self._sample_rate,
@@ -900,7 +900,7 @@ class PipeWireStrategy(LinuxAudioStrategy):
             self._pulse = None
             logger.debug("Closed PipeWire connection")
 
-    def get_format(self) -> dict[str, int | object]:
+    def get_format(self) -> dict[str, int | str]:
         """Get audio format information."""
         return {
             'sample_rate': self._sample_rate,
@@ -1067,7 +1067,7 @@ class PipeWireNativeStrategy(LinuxAudioStrategy):
         self.stop_capture()
         logger.debug("Closed PipeWire native strategy")
 
-    def get_format(self) -> dict[str, int | object]:
+    def get_format(self) -> dict[str, int | str]:
         """Get audio format information."""
         return {
             'sample_rate': self._sample_rate,
@@ -1310,7 +1310,7 @@ class LinuxBackend(AudioBackend):
 
         return self._strategy.read_audio(timeout=0.1)
 
-    def get_format(self) -> dict[str, int | object]:
+    def get_format(self) -> dict[str, int | str]:
         """
         Get audio format information.
 
