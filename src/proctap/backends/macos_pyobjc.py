@@ -38,7 +38,7 @@ import platform
 import queue
 import threading
 import struct
-import objc  # type: ignore[import-untyped]
+import objc  # type: ignore[import-not-found,import-untyped]
 import uuid
 import ctypes
 
@@ -251,8 +251,8 @@ class ProcessAudioDiscovery:
 def get_default_output_device_uid() -> str:
     """Get the UID of the default system output device."""
     # Use ctypes version if available (Priority 2 fix)
-    if CTYPES_AVAILABLE:
-        success, uid = ca_ctypes.get_default_output_device_uid()
+    if CTYPES_AVAILABLE and ca_ctypes is not None:
+        success, uid = ca_ctypes.get_default_output_device_uid()  # type: ignore[attr-defined]
         if success:
             return uid
         else:
@@ -395,7 +395,7 @@ class MacOSNativeBackend(AudioBackend):
             # 1. Check if permission is already granted
             # 2. If not, try to trigger the permission dialog
             # 3. If still denied, open System Settings for the user
-            if not ca_ctypes.ensure_microphone_permission(
+            if ca_ctypes is not None and not ca_ctypes.ensure_microphone_permission(  # type: ignore[attr-defined]
                 auto_request=True,
                 auto_open_settings=True
             ):
@@ -418,6 +418,7 @@ class MacOSNativeBackend(AudioBackend):
         self._aggregate_device_id: Optional[int] = None
         self._io_proc_id: Optional[object] = None
         self._tap_uuid: Optional[str] = None
+        self._tap_format: Optional[dict[str, object]] = None
 
         # Audio data queue
         self._audio_queue: queue.Queue[bytes] = queue.Queue(maxsize=100)
@@ -490,8 +491,8 @@ class MacOSNativeBackend(AudioBackend):
             # This must be done BEFORE creating aggregate device
             # Note: May fail with TCC error but can use default format
             # Using ctypes version (Priority 1 fix)
-            if CTYPES_AVAILABLE:
-                success, tap_format = ca_ctypes.read_tap_stream_format(self._tap_device_id)
+            if CTYPES_AVAILABLE and ca_ctypes is not None:
+                success, tap_format = ca_ctypes.read_tap_stream_format(self._tap_device_id)  # type: ignore[attr-defined]
                 if success:
                     self._tap_format = tap_format
                     logger.info(f"✓ Tap format: {tap_format.get('sample_rate')} Hz, "
@@ -680,14 +681,16 @@ class MacOSNativeBackend(AudioBackend):
 
         # Convert Python dict to CFDictionary using ctypes
         try:
-            cf_dict = ca_ctypes.create_cf_dictionary(aggregate_desc)
+            if ca_ctypes is None:
+                raise RuntimeError("ca_ctypes is not available")
+            cf_dict = ca_ctypes.create_cf_dictionary(aggregate_desc)  # type: ignore[attr-defined]
             logger.debug(f"Created CFDictionary: {cf_dict}")
 
             # Create aggregate device using ctypes binding
-            status, aggregate_device_id = ca_ctypes.AudioHardwareCreateAggregateDevice(cf_dict)
+            status, aggregate_device_id = ca_ctypes.AudioHardwareCreateAggregateDevice(cf_dict)  # type: ignore[attr-defined]
 
             # Release CFDictionary
-            ca_ctypes.CFRelease(cf_dict)
+            ca_ctypes.CFRelease(cf_dict)  # type: ignore[attr-defined]
 
             if status != 0 or aggregate_device_id == 0:
                 raise RuntimeError(
@@ -868,8 +871,8 @@ class MacOSNativeBackend(AudioBackend):
         logger.info(f"🚀 Starting aggregate device {self._aggregate_device_id} with IOProc {self._io_proc_id}")
 
         # Start AGGREGATE device using ctypes version
-        if CTYPES_AVAILABLE:
-            status = ca_ctypes.AudioDeviceStart(self._aggregate_device_id, self._io_proc_id)
+        if CTYPES_AVAILABLE and ca_ctypes is not None:
+            status = ca_ctypes.AudioDeviceStart(self._aggregate_device_id, self._io_proc_id)  # type: ignore[attr-defined]
         else:
             # Fallback to PyObjC (may fail with pointer issues)
             status = AudioDeviceStart(self._aggregate_device_id, self._io_proc_id)
@@ -886,9 +889,9 @@ class MacOSNativeBackend(AudioBackend):
         """Clean up Core Audio resources."""
         try:
             # Stop aggregate device if running (use ctypes version)
-            if self._aggregate_device_id and self._io_proc_id and CTYPES_AVAILABLE:
+            if self._aggregate_device_id and self._io_proc_id and CTYPES_AVAILABLE and ca_ctypes is not None:
                 try:
-                    ca_ctypes.AudioDeviceStop(self._aggregate_device_id, self._io_proc_id)
+                    ca_ctypes.AudioDeviceStop(self._aggregate_device_id, self._io_proc_id)  # type: ignore[attr-defined]
                 except Exception as e:
                     logger.error(f"Error stopping aggregate device: {e}")
 
@@ -900,9 +903,9 @@ class MacOSNativeBackend(AudioBackend):
                     logger.error(f"Error destroying IOProc: {e}")
 
             # Destroy aggregate device (use ctypes version)
-            if self._aggregate_device_id and CTYPES_AVAILABLE:
+            if self._aggregate_device_id and CTYPES_AVAILABLE and ca_ctypes is not None:
                 try:
-                    ca_ctypes.AudioHardwareDestroyAggregateDevice(self._aggregate_device_id)
+                    ca_ctypes.AudioHardwareDestroyAggregateDevice(self._aggregate_device_id)  # type: ignore[attr-defined]
                 except Exception as e:
                     logger.error(f"Error destroying aggregate device: {e}")
 
