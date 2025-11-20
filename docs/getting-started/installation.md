@@ -234,5 +234,4 @@ Install Visual Studio Build Tools:
 ## Next Steps
 
 - [Quick Start](quickstart.md) - Get started with ProcTap
-- [Examples](examples.md) - See usage examples
 - [API Reference](../api/processaudiotap.md) - Detailed API documentation

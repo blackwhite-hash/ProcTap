@@ -154,7 +154,7 @@ See our [GitHub Issues](https://github.com/m96-chan/ProcTap/issues) for planned 
 
 ## Contributing
 
-We welcome contributions! See our [Contributing Guide](contributing/development.md) for details.
+We welcome contributions! See our [GitHub repository](https://github.com/m96-chan/ProcTap) for details.
 
 [0.1.1]: https://github.com/m96-chan/ProcTap/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/m96-chan/ProcTap/releases/tag/v0.1.0

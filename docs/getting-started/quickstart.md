@@ -239,7 +239,5 @@ if __name__ == "__main__":
 
 ## Next Steps
 
-- [Examples](examples.md) - More advanced examples
-- [Basic Usage Guide](../guide/basic-usage.md) - Detailed usage patterns
-- [Async API](../guide/async-api.md) - Async/await patterns
 - [API Reference](../api/processaudiotap.md) - Complete API documentation
+- [GitHub Examples](https://github.com/m96-chan/ProcTap/tree/main/examples) - More code examples

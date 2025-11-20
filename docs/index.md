@@ -95,7 +95,6 @@ For development installation and building from source, see the [Installation Gui
 - [Installation Guide](getting-started/installation.md) - Install ProcTap
 - [Quick Start](getting-started/quickstart.md) - Get started in 5 minutes
 - [API Reference](api/processaudiotap.md) - Detailed API documentation
-- [Examples](getting-started/examples.md) - More usage examples
 
 ## Support
 
