@@ -111,16 +111,12 @@ else:
     print("The package will install but audio capture will not work")
 
 setup(
-    name="proc-tap",
-    version="0.3.0",
     packages=find_packages(where="src"),
     package_dir={"": "src"},
     ext_modules=ext_modules,
     package_data={
         "proctap": ["bin/screencapture-audio"],  # Include ScreenCaptureKit Swift helper
     },
-    # Install PowerShell wrapper script to Scripts directory on Windows
-    scripts=["src/proctap/scripts/proctap.ps1"] if platform.system() == "Windows" else [],
     cmdclass={
         "build_py": BuildPyCommand,
     },

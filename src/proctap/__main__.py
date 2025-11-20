@@ -25,6 +25,7 @@ except ImportError:
 
 from .core import ProcessAudioCapture
 from .backends.base import STANDARD_SAMPLE_RATE, STANDARD_CHANNELS
+from ._version import __version__
 
 logger = logging.getLogger(__name__)
 
@@ -242,6 +243,11 @@ Examples:
         '--list-audio-procs',
         action='store_true',
         help="List all processes currently playing audio and exit"
+    )
+    parser.add_argument(
+        '--version',
+        action='version',
+        version=f'%(prog)s {__version__}'
     )
 
     args = parser.parse_args()

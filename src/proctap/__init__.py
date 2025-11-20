@@ -5,8 +5,8 @@ from importlib.metadata import PackageNotFoundError, version
 try:
     __version__ = version("proc-tap")
 except PackageNotFoundError:
-    # 開発中の editable install やビルド前など
-    __version__ = "0.0.0"
+    # 開発中の editable install やビルド前など、_version.py から読み込む
+    from ._version import __version__
 
 from .core import ProcessAudioCapture, ResampleQuality
 from .backends.base import (

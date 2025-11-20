@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "proc-tap"
-version = "1.0.1"
+dynamic = ["version"]
 description = "Cross-platform process-level audio capture library"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -117,3 +117,6 @@ module = [
     "CoreAudio.*",
 ]
 ignore_missing_imports = true
+
+[tool.setuptools.dynamic]
+version = {attr = "proctap._version.__version__"}
