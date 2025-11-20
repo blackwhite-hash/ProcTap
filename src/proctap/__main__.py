@@ -19,9 +19,9 @@ import numpy as np
 from typing import Optional
 
 try:
-    import psutil
+    import psutil  # type: ignore[import-untyped]
 except ImportError:
-    psutil = None  # type: ignore
+    psutil = None  # type: ignore[assignment]
 
 from .core import ProcessAudioCapture
 from .backends.base import STANDARD_SAMPLE_RATE, STANDARD_CHANNELS

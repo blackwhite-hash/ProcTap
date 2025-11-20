@@ -56,14 +56,62 @@ def get_backend(pid: int, resample_quality: ResampleQuality = 'best') -> "AudioB
         )
 
     elif system == "Darwin":  # macOS
-        from .macos import MacOSBackend
-        # TODO: Update MacOSBackend to return standard format
-        return MacOSBackend(pid)
+        # macOS Backend Selection (in order of preference):
+        # 1. ScreenCaptureKit (macOS 13+, bundleID-based, Apple Silicon compatible)
+        # 2. Swift CLI Helper (macOS 14.4+, PID-based, requires AMFI disable on Apple Silicon)
+        # 3. PyObjC (fallback, has IOProc callback issues)
+
+        import logging
+        log = logging.getLogger(__name__)
+
+        # Try ScreenCaptureKit first (RECOMMENDED - macOS 13+, works on Apple Silicon)
+        try:
+            from .macos_screencapture import ScreenCaptureBackend, is_available as sc_available
+            if sc_available():
+                log.info("Using ScreenCaptureKit backend (Recommended - macOS 13+)")
+                return ScreenCaptureBackend(
+                    pid=pid,
+                    sample_rate=48000,  # Native format (will be converted if needed)
+                    channels=2,
+                    sample_width=2,  # Native format: 16-bit int (will be converted to float32)
+                    resample_quality=resample_quality,
+                )
+        except ImportError as e:
+            log.debug(f"ScreenCaptureKit backend not available: {e}")
+
+        # Fallback to PyObjC backend (experimental - has callback issues)
+        try:
+            from .macos_pyobjc import MacOSNativeBackend, is_available as pyobjc_available
+            if pyobjc_available():
+                log.warning(
+                    "Using PyObjC backend (Fallback - IOProc callbacks may not work). "
+                    "Consider building ScreenCaptureKit backend for better stability."
+                )
+                return MacOSNativeBackend(
+                    pid=pid,
+                    sample_rate=48000,  # Native format (will be converted if needed)
+                    channels=2,
+                    sample_width=2,  # Native format: 16-bit int (will be converted to float32)
+                    resample_quality=resample_quality,
+                )
+        except ImportError:
+            log.debug("PyObjC backend not available")
+
+        # No backend available
+        raise RuntimeError(
+            "No macOS backend available.\n"
+            "Option 1 (Recommended): Build ScreenCaptureKit backend:\n"
+            "  cd src/proctap/swift/screencapture-audio && swift build\n"
+            "  Requires: macOS 13+ (Ventura), Screen Recording permission\n"
+            "Option 2 (Fallback): Install PyObjC:\n"
+            "  pip install pyobjc-core pyobjc-framework-CoreAudio\n"
+            "  Requires: macOS 14.4+ (Sonoma)"
+        )
 
     else:
         raise NotImplementedError(
             f"Platform '{system}' is not supported. "
-            "Supported platforms: Windows, Linux (experimental), macOS (experimental)"
+            "Supported platforms: Windows (stable), Linux (stable), macOS (experimental)"
         )
 
 

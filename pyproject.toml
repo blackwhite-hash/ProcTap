@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "proc-tap"
-version = "0.3.0"
+version = "0.4.0"
 description = "Cross-platform process-level audio capture library"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -37,6 +37,8 @@ dependencies = [
     "numpy>=1.20.0",
     "scipy>=1.7.0",
     "pulsectl>=23.5.0; sys_platform == 'linux'",
+    "pyobjc-core>=9.0; sys_platform == 'darwin'",
+    "pyobjc-framework-CoreAudio>=9.0; sys_platform == 'darwin'",
 ]
 
 [project.urls]
@@ -96,6 +98,7 @@ warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = false
 ignore_missing_imports = false
+files = ["src"]
 
 # Platform-specific and optional dependencies
 [[tool.mypy.overrides]]
@@ -108,5 +111,9 @@ module = [
     "faster_whisper.*",
     "samplerate",
     "samplerate.*",
+    "Foundation",
+    "Foundation.*",
+    "CoreAudio",
+    "CoreAudio.*",
 ]
 ignore_missing_imports = true

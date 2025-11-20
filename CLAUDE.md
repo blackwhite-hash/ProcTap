@@ -8,16 +8,18 @@ ProcTap is a cross-platform Python library for capturing audio from specific pro
 
 **Platform Support:**
 - **Windows**: ✅ Fully implemented using WASAPI Process Loopback (C++ native extension)
-- **Linux**: 🧪 Experimental - PulseAudio backend (basic implementation with limitations)
-- **macOS**: 🧪 Experimental - Core Audio Process Tap via Swift CLI helper (macOS 14.4+)
+- **Linux**: ✅ Fully implemented - PipeWire Native/PulseAudio (per-process isolation, v0.3.0+)
+- **macOS**: ✅ **Officially supported** - ScreenCaptureKit (macOS 13+, bundleID-based)
 
 **Key Characteristics:**
 - Per-process audio isolation (not system-wide)
-- Low-latency streaming (10ms default buffer on Windows)
+  - Windows/Linux: PID-based capture
+  - macOS: bundleID-based capture (ScreenCaptureKit)
+- Low-latency streaming (10-15ms on macOS, 10ms on Windows, 2-5ms on Linux with PipeWire Native)
 - Platform-specific implementations:
   - Windows: WASAPI C++ extension (Windows 10 20H1+)
-  - Linux: PulseAudio backend (experimental)
-  - macOS: Core Audio Process Tap via Swift helper (macOS 14.4+, experimental)
+  - Linux: PipeWire Native API / PulseAudio (fully supported, v0.3.0+)
+  - **macOS: ScreenCaptureKit Swift helper (macOS 13+) - RECOMMENDED**
 - Dual API: callback-based and async iterator patterns
 
 ## Development Guidelines
@@ -90,7 +92,7 @@ python examples/windows_basic.py --name "VRChat.exe" --output audio.wav
 # Linux example (requires pulseaudio-utils)
 python examples/linux_basic.py --pid 12345 --duration 5 --output output.wav
 
-# macOS example (requires macOS 14.4+, Swift helper)
+# macOS example (requires macOS 14.4+, PyObjC)
 python examples/macos_basic.py --pid 12345 --duration 5 --output output.wav
 ```
 
@@ -117,17 +119,32 @@ proctap --pid 12345 --resample-quality fast --stdout | ffmpeg -f s16le -ar 48000
 # --resample-quality fast   (lowest quality, ~0.3-0.5ms latency)
 ```
 
-### Building macOS Swift Helper
+### macOS Setup
+
+**Recommended: ScreenCaptureKit Backend (macOS 13+)**
 
 ```bash
-# Build Swift CLI helper for macOS
-cd swift/proctap-macos
+# Build Swift helper binary
+cd src/proctap/swift/screencapture-audio
 swift build -c release
 
-# Copy to package directory
-cp .build/release/proctap-macos ../../src/proctap/bin/
+# Enable Screen Recording permission
+# System Settings → Privacy & Security → Screen Recording → Enable for Terminal/IDE
 
-# The setup.py build system will do this automatically on macOS if Swift toolchain is available
+# Test
+python examples/macos_screencapture_test.py --bundle-id com.apple.Safari --duration 5
+```
+
+**Fallback: PyObjC Backend (Experimental, macOS 14.4+)**
+
+```bash
+# Install PyObjC dependencies
+pip install pyobjc-core pyobjc-framework-CoreAudio
+
+# Or install with optional dependencies
+pip install -e ".[macos]"
+
+# Note: PyObjC backend has IOProc callback issues and is not recommended
 ```
 
 ## Architecture
@@ -141,21 +158,21 @@ ProcTap (core.py - Public API)
     ↓
 backends/__init__.py (Platform Detection)
     ↓
-┌─────────────────┬──────────────────┬──────────────────┐
-│ Windows         │ Linux            │ macOS            │
-│ (Implemented)   │ (Experimental)   │ (Experimental)   │
-├─────────────────┼──────────────────┼──────────────────┤
-│ WindowsBackend  │ LinuxBackend     │ MacOSBackend     │
-│ └─ _native.cpp  │ └─ PulseAudio    │ └─ Swift CLI     │
-│    (WASAPI)     │    (parec)       │    (Process Tap) │
-└─────────────────┴──────────────────┴──────────────────┘
+┌─────────────────┬──────────────────┬──────────────────────────┐
+│ Windows         │ Linux            │ macOS                    │
+│ (Implemented)   │ (Implemented)    │ (Implemented)            │
+├─────────────────┼──────────────────┼──────────────────────────┤
+│ WindowsBackend  │ LinuxBackend     │ ScreenCaptureBackend     │
+│ └─ _native.cpp  │ └─ PulseAudio/   │ └─ Swift CLI Helper      │
+│    (WASAPI)     │    PipeWire      │    (ScreenCaptureKit)    │
+└─────────────────┴──────────────────┴──────────────────────────┘
 ```
 
 **Backend Selection** ([backends/__init__.py](src/proctap/backends/__init__.py)):
 - Automatic platform detection using `platform.system()`
 - Windows: Uses native C++ extension with WASAPI
-- Linux: PulseAudio backend (experimental)
-- macOS: Core Audio Process Tap via Swift CLI helper (experimental)
+- Linux: PulseAudio/PipeWire backend with multiple strategies
+- **macOS: ScreenCaptureKit Swift helper (macOS 13+) - RECOMMENDED**
 
 **Windows Backend** ([backends/windows.py](src/proctap/backends/windows.py)):
 - Wraps `_native.cpp` C++ extension
@@ -173,7 +190,8 @@ backends/__init__.py (Platform Detection)
 **Linux Backend** ([backends/linux.py](src/proctap/backends/linux.py)):
 - ✅ Fully implemented with multiple strategies (v0.3.0+)
 - **PipeWire Native API** ([backends/pipewire_native.py](src/proctap/backends/pipewire_native.py)):
-  - Ultra-low latency: ~2-5ms (vs ~10-20ms subprocess-based)
+  - 🚧 In development: Core functionality implemented, integration ongoing
+  - Target latency: ~2-5ms (vs ~10-20ms subprocess-based)
   - Direct C API bindings via ctypes
   - Auto-selected when available
 - **Strategy Pattern:** PipeWire Native → PipeWire subprocess (`pw-record`) → PulseAudio (`parec`)
@@ -181,19 +199,29 @@ backends/__init__.py (Platform Detection)
 - Uses `pulsectl` library for stream management
 - Requires: System-dependent (libpipewire-0.3-dev for native, pw-record or parec for subprocess)
 
-**macOS Backend** ([backends/macos.py](src/proctap/backends/macos.py)):
-- 🧪 Experimental - Core Audio Process Tap API (macOS 14.4+)
-- Uses Swift CLI helper binary (proctap-macos) that wraps Core Audio APIs
-- Swift helper outputs raw PCM to stdout, Python reads from subprocess pipe
+**macOS Backend** ([backends/macos_screencapture.py](src/proctap/backends/macos_screencapture.py)):
+- ✅ **RECOMMENDED** - ScreenCaptureKit API (macOS 13+, bundleID-based)
+- Uses Swift CLI helper subprocess for audio capture
+- **Advantages:**
+  - Apple Silicon compatible (no AMFI/SIP hacks needed)
+  - Simple TCC permissions (Screen Recording only)
+  - Stable Apple official API
+  - No Developer ID code signing required
+  - Low latency (~10-15ms)
 - **Requirements:**
-  - macOS 14.4 (Sonoma) or later
-  - Swift CLI helper binary (built with SwiftPM)
-  - Audio capture permission (NSAudioCaptureUsageDescription)
-  - Target process must be actively playing audio
+  - macOS 13.0 (Ventura) or later
+  - Swift helper binary: `cd src/proctap/swift/screencapture-audio && swift build`
+  - Screen Recording permission (System Settings → Privacy & Security)
 - **Implementation:**
-  - Python side: Version detection, subprocess management, PCM reading
-  - Swift side: Core Audio Process Tap API, aggregate device creation, IOProc callback
-  - See [swift/proctap-macos/](swift/proctap-macos/) for Swift helper source
+  - Swift CLI helper (`screencapture-audio`) captures via ScreenCaptureKit
+  - Python backend manages subprocess and PCM streaming
+  - PID → bundleID translation using `lsappinfo`
+  - See [backends/macos_screencapture.py](src/proctap/backends/macos_screencapture.py)
+  - See [swift/screencapture-audio/](src/proctap/swift/screencapture-audio/) for Swift implementation
+
+**Experimental/Archived Backends**:
+- PyObjC backend: [backends/macos_pyobjc.py](src/proctap/backends/macos_pyobjc.py) - IOProc callback issues
+- Process Tap investigation: [archive/apple-silicon-investigation-20251120/](archive/apple-silicon-investigation-20251120/) - AMFI limitations on Apple Silicon
 
 ### Threading Model
 
@@ -227,7 +255,8 @@ Audio Source (Process-specific)
 **[backends/](src/proctap/backends/)** - Platform-specific implementations:
 - `base.py`: `AudioBackend` abstract base class
 - `windows.py`: Windows implementation (wraps `_native.cpp` + format conversion)
-- `linux.py`: Linux PulseAudio implementation (experimental)
+- `linux.py`: Linux PipeWire/PulseAudio implementation (fully supported, v0.3.0+)
+- `pipewire_native.py`: Native PipeWire API bindings (in development)
 - `macos.py`: macOS Core Audio Process Tap implementation (experimental)
 - `converter.py`: Audio format converter (sample rate, channels, bit depth)
 
@@ -258,17 +287,17 @@ The build system ([setup.py](setup.py)) automatically detects the platform and b
 
 **Linux Builds:**
 - No C++ extension required (pure Python)
-- PulseAudio backend uses `pulsectl` library and `parec` command
-- System dependencies: `pulseaudio-utils` package
+- Multiple backend strategies:
+  - PipeWire Native: `libpipewire-0.3-dev` (optional, for ultra-low latency)
+  - PipeWire subprocess: `pw-record` from `pipewire-utils`
+  - PulseAudio: `parec` from `pulseaudio-utils`
+- Python dependencies: `pulsectl` library (automatically installed)
 
 **macOS Builds:**
-- Swift CLI helper (proctap-macos) built with SwiftPM
-- Custom `build_py` command in setup.py:
-  - Runs `swift build -c release` in `swift/proctap-macos/`
-  - Copies binary to `src/proctap/bin/`
-  - Makes binary executable
-- Gracefully degrades if Swift toolchain not available
-- Binary included in wheel via `package_data`
+- Pure Python backend using PyObjC (no compilation needed)
+- PyObjC dependencies installed automatically on macOS via environment markers
+- No Swift toolchain or Xcode required
+- **Experimental backends** (Swift CLI, C extension) are in `src/proctap/experimental/` and not recommended
 
 ## Python Dependencies
 
@@ -287,10 +316,13 @@ The build system ([setup.py](setup.py)) automatically detects the platform and b
       - `'fast'`: Uses `sinc_fastest` converter
 - **Windows**: Uses native C++ extension + Python format conversion
 - **Linux**: `pulsectl>=23.5.0` (automatically installed via environment markers in pyproject.toml)
-- **macOS**: No additional dependencies (uses Swift CLI helper binary)
+- **macOS**: `pyobjc-core>=9.0`, `pyobjc-framework-CoreAudio>=9.0` (automatically installed via environment markers in pyproject.toml)
 
 **System Dependencies (Linux only):**
-- `parec` command from `pulseaudio-utils` package
+- One of the following (auto-detected with graceful fallback):
+  - **PipeWire Native** (recommended): `libpipewire-0.3-dev`
+  - **PipeWire subprocess**: `pw-record` from `pipewire-utils`
+  - **PulseAudio**: `parec` from `pulseaudio-utils`
 - PulseAudio or PipeWire with pulseaudio-compat
 
 **Examples:**
@@ -391,13 +423,14 @@ Raw PCM data is returned as `bytes` to user callbacks/iterators.
 
 **Linux Backend:**
 1. **Native PipeWire API Implementation** ([backends/pipewire_native.py](src/proctap/backends/pipewire_native.py)):
-   - ✅ COMPLETED (v0.4.0+):
-     * SPA POD format parameters
-     * Registry API for node discovery
-     * Comprehensive error handling
-     * Thread management
-     * Integration with LinuxBackend
-   - ✅ Testing: Unit tests and examples added
+   - 🚧 IN DEVELOPMENT (v0.3.0+):
+     * ✅ Core API bindings (pw_init, pw_main_loop, pw_context, pw_stream)
+     * ✅ Stream capture framework (pw_stream_new_simple, dequeue/queue buffers)
+     * ✅ Registry API for node discovery
+     * ✅ Basic thread management
+     * ⚠️  Incomplete: SPA POD format parameters optimization
+     * ⚠️  Integration with LinuxBackend: Experimental, may fall back to subprocess
+   - ✅ Testing: Basic unit tests and examples added
 
 2. **Cross-distribution Testing** (Ongoing):
    - Verify on Ubuntu, Fedora, Arch Linux, Debian

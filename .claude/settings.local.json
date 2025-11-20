@@ -4,10 +4,11 @@
       "Bash(git mv:*)",
       "Bash(move:*)",
       "Bash(python:*)",
+      "Bash(python3:*)",
+      "Bash(python3.12:*)",
       "Bash(./cuda_env/Scripts/python.exe:*)",
       "Bash(python3.12 -m mypy:*)",
       "Bash(python3.12 -m pytest:*)",
-      "Bash(python3.12:*)",
       "Bash(mypy:*)",
       "Bash(pip install:*)",
       "Bash(pip uninstall:*)",
@@ -15,7 +16,12 @@
       "Bash(PYTHONPATH=src python:*)",
       "Bash(taskkill:*)",
       "Bash(nul)",
-      "Bash(wsl bash:*)"
+      "Bash(wsl bash:*)",
+      "Bash(swift build:*)",
+      "Bash(ffprobe:*)",
+      "Bash(git add:*)",
+      "Bash(git restore:*)",
+      "Bash(git tag:*)"
     ],
     "deny": [],
     "ask": []
