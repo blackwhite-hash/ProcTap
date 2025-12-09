@@ -373,21 +373,22 @@ class ScreenCaptureBackend(AudioBackend):
         bytes_per_frame = STANDARD_CHANNELS * STANDARD_SAMPLE_WIDTH
         total_bytes_needed = num_frames * bytes_per_frame
 
-        chunks = []
+        # Pre-allocate bytearray to avoid repeated allocations
+        result = bytearray(total_bytes_needed)
         bytes_read = 0
 
         while bytes_read < total_bytes_needed:
             try:
                 chunk = self._audio_queue.get(timeout=1.0)
-                chunks.append(chunk)
-                bytes_read += len(chunk)
+                chunk_len = min(len(chunk), total_bytes_needed - bytes_read)
+                result[bytes_read:bytes_read + chunk_len] = chunk[:chunk_len]
+                bytes_read += chunk_len
             except queue.Empty:
                 if not self._running:
                     break
                 continue
 
-        data = b"".join(chunks)
-        return data[:total_bytes_needed]
+        return bytes(result[:bytes_read])
 
     def iter_chunks(self):
         """
